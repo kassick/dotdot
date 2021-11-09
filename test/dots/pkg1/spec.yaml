@@ -1,0 +1,11 @@
+name: package1
+actions:
+- link: file1
+- link_recursively:
+    - dir1
+    - from: dir2
+      to: user_dir_2
+- execute:
+    - cmd1
+    - cmd2
+- execute: ./cmd
