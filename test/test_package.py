@@ -1,7 +1,8 @@
 import os
 import pytest
 
-from dot.dot import ExecuteAction, Package, SymlinkAction, SymlinkRecursiveAction
+from dotdot.dot import Package
+from dotdot.actions import SymlinkAction, SymlinkRecursiveAction, ExecuteAction
 
 @pytest.fixture
 def mock_home(monkeypatch):

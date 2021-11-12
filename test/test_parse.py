@@ -1,7 +1,7 @@
 from unittest import TestCase
 import yaml
 
-from dot.dot import GitCloneAction, InvalidActionDescription, SymlinkAction
+from dotdot.actions import GitCloneAction, InvalidActionDescription, SymlinkAction
 
 class TestParseSrcDestEntry(TestCase):
     def setUp(self):

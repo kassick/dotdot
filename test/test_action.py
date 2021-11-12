@@ -6,8 +6,7 @@ import pytest
 import yaml
 import os
 
-from dot import dot as dotdot
-from dot.dot import SymlinkAction
+from dotdot.dot import SymlinkAction
 
 @pytest.fixture
 def mock_home(monkeypatch):
