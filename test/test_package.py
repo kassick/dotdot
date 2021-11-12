@@ -19,9 +19,8 @@ def test_load_from_folder(mock_home):
         [SymlinkAction('file1', '.file1'),
          SymlinkRecursiveAction('dir1', '.dir1'),
          SymlinkRecursiveAction('dir2', 'user_dir_2'),
-         ExecuteAction('cmd1'),
-         ExecuteAction('cmd2'),
-         ExecuteAction('./cmd')
+         ExecuteAction(['cmd1', 'cmd2']),
+         ExecuteAction(['./cmd'])
          ]
     )
 

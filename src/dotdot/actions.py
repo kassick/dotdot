@@ -177,7 +177,7 @@ class GitCloneAction(SrcDestAction):
 
 @dataclass
 class ExecuteAction(BaseAction):
-    cmd: str
+    cmds: Sequence[str]
 
     def execute(self):
         print('execute', self)
@@ -187,9 +187,12 @@ class ExecuteAction(BaseAction):
         if isinstance(entries, str):
             entries = [entries]
 
+        invalid_entries = [e for e in entries if not isinstance(e, str)]
+        if invalid_entries:
+            raise InvalidActionDescription(f'execute action expects strings, received {invalid_entries}')
+
         return [
-            ExecuteAction(cmd)
-            for cmd in entries
+            ExecuteAction(entries)
         ]
 
 

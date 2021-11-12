@@ -1,7 +1,7 @@
 from unittest import TestCase
 import yaml
 
-from dotdot.actions import GitCloneAction, InvalidActionDescription, SymlinkAction
+from dotdot.actions import ExecuteAction, GitCloneAction, InvalidActionDescription, SymlinkAction
 
 class TestParseSrcDestEntry(TestCase):
     def setUp(self):
@@ -230,5 +230,39 @@ class TestParseGitClone(TestCase):
         result = GitCloneAction.parse_one_entry('some_path', entry)
 
         expected = [GitCloneAction('git@url:/path', '.local/repo', branch='main')]
+
+        assert result == expected
+
+
+class TestParseExecute(TestCase):
+
+    def setUp(self):
+        self.entry_single_cmd = yaml.safe_load(
+            """
+            actions:
+            - execute: ls
+            """
+        )
+
+        self.entry_multiple_cmds = yaml.safe_load(
+            """
+            actions:
+            - execute:
+              - export VAR=value
+              - ls $VAR
+            """
+        )
+
+    def test_parse_single_entry(self):
+        entry = self.entry_single_cmd['actions'][0]['execute']
+        result = ExecuteAction.parse_entries('some_path', entry)
+        expected = [ExecuteAction(['ls'])]
+
+        assert result == expected
+
+    def test_parse_multiple_entries(self):
+        entry = self.entry_multiple_cmds['actions'][0]['execute']
+        result = ExecuteAction.parse_entries('some_path', entry)
+        expected = [ExecuteAction(['export VAR=value', 'ls $VAR'])]
 
         assert result == expected
