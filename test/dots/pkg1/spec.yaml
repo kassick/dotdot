@@ -1,4 +1,4 @@
-name: package1
+description: package1
 actions:
 - link: file1
 - link_recursively:

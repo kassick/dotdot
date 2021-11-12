@@ -3,24 +3,25 @@ from __future__ import annotations
 import os
 import os.path
 from dataclasses import dataclass
-from typing import Sequence
+from typing import Optional, Sequence, Tuple
 
 import yaml
 from yaml.error import YAMLError
 
-from dotdot.exceptions import InvalidPackageException, InvalidActionType
 from dotdot.actions import BaseAction, SymlinkAction, action_class_from_str
+from dotdot.exceptions import InvalidActionType, InvalidPackageException
 from dotdot.spec import SPEC_FILE_NAME
 
 
 @dataclass
 class Package:
     name: str
+    description: Optional[str]
     package_path: str
     actions: Sequence[BaseAction]
 
     @staticmethod
-    def from_dot_file(path: str) -> Package:
+    def _from_dot_file(path: str) -> Package:
         # The most simple type of dot:
         # the path is the file or folder that must be symlinked to the home path
 
@@ -32,10 +33,10 @@ class Package:
                             #.to_final_paths(os.path.dirname(path))
                             ]
 
-        return Package(base_name, package_path, output_actions)
+        return Package(base_name, None, package_path, output_actions)
 
     @staticmethod
-    def from_dot_directory(path: str) -> Package:
+    def _from_dot_directory(path: str) -> Package:
         # a bunch of files or folders that must be symlinked
         base_name = os.path.basename(path)
 
@@ -47,7 +48,7 @@ class Package:
                                   #.to_final_paths(path)
                                   )
 
-        return Package(base_name, path, output_actions)
+        return Package(base_name, None, path, output_actions)
 
     @staticmethod
     def from_dot_path(path: str) -> Package:
@@ -58,7 +59,7 @@ class Package:
             with open(metadata_file, 'r') as fh:
                 data = yaml.safe_load(fh)
 
-            name = data.get('name') or os.path.basename(path)
+            description = data.get('description') or os.path.basename(path)
             list = data.get('actions') or []
 
             output_actions = []
@@ -85,7 +86,8 @@ class Package:
                     output_actions.extend(entries)
 
             return Package(
-                name,
+                os.path.basename(path),
+                description,
                 path,
                 output_actions
                 #[act.to_final_paths(path) for act in output_actions]
@@ -93,29 +95,26 @@ class Package:
 
         else:
             # simple file, link it to home
-            if os.path.isfile(path): return Package.from_dot_file(path)
+            if os.path.isfile(path): return Package._from_dot_file(path)
             # folder without spec, link all files
-            elif os.path.isdir(path): return Package.from_dot_directory(path)
+            elif os.path.isdir(path): return Package._from_dot_directory(path)
             else:
                 raise InvalidPackageException(
                     f'path {path} does not contain a valid package'
                 )
 
     @staticmethod
-    def scan(path: str) -> Sequence[Package]:
+    def scan(path: str) -> Tuple[Sequence[Package], Sequence[Tuple[str, Exception]]]:
         """Scans a path for dots and """
         contents = os.listdir(path)
 
         results = []
+        errors = []
         for dot in contents:
             dot_path = os.path.join(path, dot)
             try:
                 results.append(Package.from_dot_path(dot_path))
-            except InvalidPackageException as e:
-                print(f'Warning: path {dot_path} contains an invalid dot: {e}')
-            except YAMLError as e:
-                print(f'Warning: path {dot_path} contains an invalid spec: {e}')
-            except InvalidActionType as e:
-                print(f'Spec file in {dot_path} contains invalid action {e.action}')
+            except Exception as e:
+                errors.append((dot, e))
 
-        return results
+        return results, errors

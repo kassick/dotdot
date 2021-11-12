@@ -10,8 +10,35 @@ from dotdot.exceptions import InvalidActionDescription, InvalidActionType
 from dotdot.spec import SPEC_FILE_NAME
 
 
+def mk_backup_name(file_name: str) -> str:
+    """creates a backup file name for a given file"""
+    name = os.path.basename(file_name)
+    dir_name = os.path.dirname(file_name)
+    dir_name = os.path.expanduser(dir_name)
+
+    bk_name = f'{name}.bk'
+    if bk_name[0] == '.':
+        bk_name = '_' + bk_name[1:]
+
+    i = 1
+    attempt = bk_name
+
+    while os.path.exists(os.path.join(dir_name, attempt)):
+        attempt = f'{bk_name}.{i}'
+        i += 1
+
+        if i > 10:
+            raise Exception(f'Too many backup files for {file_name}')
+
+    return os.path.join(dir_name, attempt)
+
+
 class BaseAction:
-    def execute(self):
+
+    def msg(self):
+        raise Exception('not implemented')
+
+    def execute(self, dry_run=False):
         """Executes the action"""
         raise Exception('not implemented')
 
@@ -114,8 +141,23 @@ class SrcDestAction(BaseAction):
 @dataclass
 class SymlinkAction(SrcDestAction):
     """An action that symlinks a file to the a destination"""
-    def execute(self):
-        print('symlink', self)
+
+    def msg(self) -> str:
+        return f'SYMLINK {self.destination} -> {self.source}'
+
+    def execute(self, dry_run=False):
+
+        if not dry_run:
+            dst = os.path.expanduser(self.destination)
+            if os.path.exists(dst):
+                new_name = mk_backup_name(dst)
+                print('Backing up', dst, 'to', new_name)
+
+                os.rename(dst, new_name)
+
+                # TODO BACK UP
+
+            os.symlink(self.source, dst)
 
 
 @dataclass
@@ -137,7 +179,7 @@ class SymlinkRecursiveAction(SrcDestAction):
     where $PACKAGE_PATH is the path of the package containing folder1
 
     """
-    def execute(self):
+    def execute(self, dry_run=False):
         print('symlink recursive', self)
 
 
@@ -171,7 +213,7 @@ class GitCloneAction(SrcDestAction):
 
             return [GitCloneAction(src, dst, branch=branch)]
 
-    def execute(self):
+    def execute(self, dry_run=False):
         print('git clone', self)
 
 
@@ -179,7 +221,7 @@ class GitCloneAction(SrcDestAction):
 class ExecuteAction(BaseAction):
     cmds: Sequence[str]
 
-    def execute(self):
+    def execute(self, dry_run=False):
         print('execute', self)
 
     @classmethod
