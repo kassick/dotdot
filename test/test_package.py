@@ -2,7 +2,7 @@ import os
 import pytest
 
 from dotdot.dot import Package
-from dotdot.actions import SymlinkAction, SymlinkRecursiveAction, ExecuteAction
+from dotdot.actions import GitCloneAction, SymlinkAction, SymlinkRecursiveAction, ExecuteAction
 
 @pytest.fixture
 def mock_home(monkeypatch):
@@ -29,7 +29,8 @@ def test_load_from_folder(mock_home):
                               )
                              ]
                        ),
-         ExecuteAction(package_path='test/dots/pkg1', cmds=['./cmd.sh'])
+         ExecuteAction(package_path='test/dots/pkg1', cmds=['./cmd.sh']),
+         GitCloneAction(package_path='test/dots/pkg1', source='https://github.com/kassick/evil-iedit-state', destination='tmp/evil-iedit-state')
          ]
     )
 

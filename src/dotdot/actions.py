@@ -6,6 +6,7 @@ import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional, Sequence, Type, TypeVar, Union
+from git.repo import Repo
 
 from dotdot.exceptions import InvalidActionDescription, InvalidActionType
 from dotdot.spec import SPEC_FILE_NAME
@@ -209,6 +210,7 @@ class MkdirAction(BaseAction):
             else:
                 os.mkdir(target)
 
+
 @dataclass
 class SymlinkRecursiveAction(SrcDestAction):
     """An action that symlinks all files inside a folder (recursively) to the
@@ -301,6 +303,14 @@ class GitCloneAction(SrcDestAction):
           to really rewrite the classmethod
     """
     branch: Optional[str] = None
+    source_is_local: bool = False
+
+    def msg(self) -> str:
+        s = f'GITCLONE FROM {self.source} TO {self.destination}'
+        if self.branch:
+            s += f' AT BRANCH {self.branch}'
+
+        return s
 
     @classmethod
     def parse_one_entry(cls, package_path: str, entry: Union[str, dict[str, str]]) -> Sequence[BaseAction]:
@@ -318,11 +328,70 @@ class GitCloneAction(SrcDestAction):
             return [GitCloneAction(package_path=package_path,
                                    source=src,
                                    destination=dst,
-                                   branch=branch)
+                                   branch=branch,
+                                   source_is_local=False)
                     ]
 
     def execute(self, dry_run=False):
-        print('git clone', self)
+        if os.path.isfile(self.destination):
+            raise Exception(f'Can not initialize a git repo at {self.destination}: it\'s a file')
+
+        # create or load the repo
+        try:
+            repo = Repo(self.destination)
+        except:
+            print(f'- Initialize repo at {self.destination}')
+            repo = Repo.init(self.destination)
+            repo.create_remote('origin', self.source)
+
+        # find remote by url or create one
+        try:
+            dot_remote = next(
+                remote
+                for remote in repo.remotes
+                if remote.url == self.source
+            )
+        except:
+            print(f'- Add remote {self.source}')
+            dot_remote = repo.create_remote('from_dot_setup', self.source)
+
+        print('- Fetching changes')
+        dot_remote.fetch()
+
+        # find by branch name
+        if self.branch:
+            branch_names = [self.branch]
+        else:
+            branch_names = ['main', 'master']
+
+        remote_head = None
+        local_head = None
+
+        for branch_name in branch_names:
+
+            # locate the remote head
+            # skip if not found
+            try:
+                remote_head = dot_remote.refs[branch_name]
+            except:
+                continue
+
+            # locate or create local head and set it to track the remote head
+            try:
+                local_head = repo.refs[branch_name]
+            except:
+                remote_head.checkout()
+                local_head = repo.create_head(f'refs/heads/{branch_name}')
+                local_head.set_tracking_branch(remote_head)
+
+            # found both heads
+            break
+
+        print(f'- Checking out ref {local_head.name}')
+        local_head.checkout()
+
+        print('- Pulling changes from remote')
+        dot_remote.pull()
 
 
 @dataclass
