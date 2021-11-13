@@ -14,26 +14,30 @@ def mock_home(monkeypatch):
 
 
 def test_final_paths_updates_object_path(mock_home):
-    action = SymlinkAction('a_file', '.a_file')
+    action = SymlinkAction(package_path='pkg/path', source='a_file', destination='.a_file')
 
-    result = action.to_final_paths('pkg/path')
+    result = action.materialize()
 
     assert result == SymlinkAction(
-        'pkg/path/a_file',
-        '~/.a_file')
+        package_path='pkg/path',
+        source='pkg/path/a_file',
+        destination='~/.a_file'
+    )
 
 def test_final_paths_ignores_non_local_object(mock_home):
     action = SymlinkAction(
-        'http://some.file/at/path',
-        '.a_file',
+        package_path='pkg/path',
+        source='http://some.file/at/path',
+        destination='.a_file',
         source_is_local=False
     )
 
-    result = action.to_final_paths('pkg/path')
+    result = action.materialize()
 
     assert result == SymlinkAction(
-        'http://some.file/at/path',
-        '~/.a_file',
+        package_path='pkg/path',
+        source='http://some.file/at/path',
+        destination='~/.a_file',
         source_is_local=False
     )
 

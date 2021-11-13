@@ -2,9 +2,9 @@ from __future__ import annotations
 
 import os
 import os.path
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, Optional, Sequence, Type, Union
+from typing import Any, List, Optional, Sequence, Type, TypeVar, Union
 
 from dotdot.exceptions import InvalidActionDescription, InvalidActionType
 from dotdot.spec import SPEC_FILE_NAME
@@ -33,7 +33,10 @@ def mk_backup_name(file_name: str) -> str:
     return os.path.join(dir_name, attempt)
 
 
+TBaseAction = TypeVar('TBaseAction', bound='BaseAction')
+@dataclass
 class BaseAction:
+    package_path: str
 
     def msg(self):
         raise Exception('not implemented')
@@ -42,7 +45,7 @@ class BaseAction:
         """Executes the action"""
         raise Exception('not implemented')
 
-    def to_final_paths(self, package_path: str) -> BaseAction:
+    def materialize(self: TBaseAction, package_path: str) -> TBaseAction:
         """Returns a new action with the paths adjusted to package_path and $HOME
 
         - any source file will be adjusted to be relative to the user's $HOME
@@ -60,6 +63,7 @@ class BaseAction:
         raise Exception('not implemented')
 
 
+TSrcDestAction = TypeVar('TSrcDestAction', bound='SrcDestAction')
 @dataclass
 class SrcDestAction(BaseAction):
     """An action that has a source and a destination
@@ -70,10 +74,10 @@ class SrcDestAction(BaseAction):
     """
 
     # file or folder path relative to the package data path ; or URL
-    source: str
+    source: str = ""
 
     # where the object should be stored, relative to the user's home
-    destination: str
+    destination: str = ""
 
     # whether object_path is local
     source_is_local: bool = True
@@ -98,12 +102,17 @@ class SrcDestAction(BaseAction):
                     return f'.{_path}'
 
             return [
-                cls(_file, mk_dst(_file))
+                cls(package_path=package_path,
+                    source=_file,
+                    destination=mk_dst(_file))
                 for _file in package_contents
                 if _file != SPEC_FILE_NAME
             ]
 
-        return [cls(src, dst)]
+        return [cls(package_path=package_path,
+                    source=src,
+                    destination=dst)
+                ]
 
     @classmethod
     def parse_entries(cls, package_path: str, entries: Union[str, Sequence[Any]]) -> Sequence[BaseAction]:
@@ -116,13 +125,13 @@ class SrcDestAction(BaseAction):
             for parsed in cls.parse_one_entry(package_path, e)
         ]
 
-    def to_final_paths(self, package_path: str) -> BaseAction:
+    def materialize(self: TSrcDestAction) -> TSrcDestAction:
         """
         Makes an action paths absolute
         """
 
         if self.source_is_local:
-            pkg_abs_path = os.path.abspath(package_path)
+            pkg_abs_path = os.path.abspath(self.package_path)
             pkg_path_from_home = os.path.relpath(pkg_abs_path, Path.home())
             object_path = os.path.join(pkg_path_from_home, self.source)
         else:
@@ -133,8 +142,9 @@ class SrcDestAction(BaseAction):
             dest_abs_path = os.path.join('~', dest_abs_path)
 
         return type(self)(
-            object_path,
-            dest_abs_path,
+            package_path=self.package_path,
+            source=object_path,
+            destination=dest_abs_path,
             source_is_local=self.source_is_local
         )
 
@@ -179,6 +189,22 @@ class SymlinkRecursiveAction(SrcDestAction):
     where $PACKAGE_PATH is the path of the package containing folder1
 
     """
+
+    _actions: List[BaseAction] = field(default_factory=list)
+
+
+    def _create_sub_actions(self):
+        print('sub actions!')
+        return self
+
+    def materialize(self) -> SymlinkRecursiveAction:
+        materialized = super().materialize()
+
+        materialized._create_sub_actions()
+
+        return materialized
+
+
     def execute(self, dry_run=False):
         print('symlink recursive', self)
 
@@ -211,7 +237,11 @@ class GitCloneAction(SrcDestAction):
 
             branch = entry.get('branch')
 
-            return [GitCloneAction(src, dst, branch=branch)]
+            return [GitCloneAction(package_path=package_path,
+                                   source=src,
+                                   destination=dst,
+                                   branch=branch)
+                    ]
 
     def execute(self, dry_run=False):
         print('git clone', self)
@@ -219,7 +249,7 @@ class GitCloneAction(SrcDestAction):
 
 @dataclass
 class ExecuteAction(BaseAction):
-    cmds: Sequence[str]
+    cmds: Sequence[str] = field(default_factory=list)
 
     def execute(self, dry_run=False):
         print('execute', self)
@@ -234,7 +264,7 @@ class ExecuteAction(BaseAction):
             raise InvalidActionDescription(f'execute action expects strings, received {invalid_entries}')
 
         return [
-            ExecuteAction(entries)
+            ExecuteAction(package_path=package_path, cmds=entries)
         ]
 
 

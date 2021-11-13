@@ -17,11 +17,11 @@ def test_load_from_folder(mock_home):
         'pkg1',
         'package1',
         'test/dots/pkg1',
-        [SymlinkAction('file1', '.file1'),
-         SymlinkRecursiveAction('dir1', '.dir1'),
-         SymlinkRecursiveAction('dir2', 'user_dir_2'),
-         ExecuteAction(['cmd1', 'cmd2']),
-         ExecuteAction(['./cmd'])
+        [SymlinkAction('test/dots/pkg1', source='file1', destination='.file1'),
+         SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir1', destination='.dir1'),
+         SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir2', destination='user_dir_2'),
+         ExecuteAction(package_path='test/dots/pkg1', cmds=['cmd1', 'cmd2']),
+         ExecuteAction(package_path='test/dots/pkg1', cmds=['./cmd'])
          ]
     )
 

@@ -1,7 +1,12 @@
+from typing import Sequence
 from unittest import TestCase
+
 import yaml
 
-from dotdot.actions import ExecuteAction, GitCloneAction, InvalidActionDescription, SymlinkAction
+from dotdot.actions import (ExecuteAction, GitCloneAction,
+    InvalidActionDescription, SymlinkAction)
+from dotdot.spec import SPEC_FILE_NAME
+
 
 class TestParseSrcDestEntry(TestCase):
     def setUp(self):
@@ -44,6 +49,7 @@ class TestParseSrcDestEntry(TestCase):
         )
 
         self.single_entry_wildcard_text = yaml.safe_load(
+            # links every file `f` to their corresponting `~/.{f}`
             """
             actions:
             - link: '*'
@@ -51,6 +57,7 @@ class TestParseSrcDestEntry(TestCase):
         )
 
         self.single_entry_wildcard_dict = yaml.safe_load(
+            # links every file `f` to the corresponding `~/.local/share/{f}`
             """
             actions:
             - link:
@@ -64,7 +71,7 @@ class TestParseSrcDestEntry(TestCase):
         link_single_entry = self.single_entry_text['actions'][0]['link']
         result = SymlinkAction.parse_one_entry('some_path', link_single_entry)
 
-        expected = [SymlinkAction('a_file', '.a_file')]
+        expected = [SymlinkAction(package_path='some_path', source='a_file', destination='.a_file')]
 
         assert result == expected
 
@@ -74,7 +81,7 @@ class TestParseSrcDestEntry(TestCase):
         link_single_entry = self.single_entry_dict['actions'][0]['link'][0]
         result = SymlinkAction.parse_one_entry('some_path', link_single_entry)
 
-        expected = [SymlinkAction('a_file', 'some_file')]
+        expected = [SymlinkAction(package_path='some_path', source='a_file', destination='some_file')]
 
         assert result == expected
 
@@ -84,7 +91,7 @@ class TestParseSrcDestEntry(TestCase):
         result = SymlinkAction.parse_entries('some_path', link_entry)
 
         expected = [
-            SymlinkAction('a_file', '.a_file')
+            SymlinkAction(package_path='some_path', source='a_file', destination='.a_file')
         ]
 
         assert result == expected
@@ -95,9 +102,9 @@ class TestParseSrcDestEntry(TestCase):
         result = SymlinkAction.parse_entries('some_path', link_entry)
 
         expected = [
-            SymlinkAction('a_file', '.a_file'),
-            SymlinkAction('other_file', '.other_file'),
-            SymlinkAction('yet_another', '.yet_another'),
+            SymlinkAction(package_path='some_path', source='a_file', destination='.a_file'),
+            SymlinkAction(package_path='some_path', source='other_file', destination='.other_file'),
+            SymlinkAction(package_path='some_path', source='yet_another', destination='.yet_another'),
         ]
 
         assert result == expected
@@ -108,7 +115,7 @@ class TestParseSrcDestEntry(TestCase):
         result = SymlinkAction.parse_entries('some_path', link_entry)
 
         expected = [
-            SymlinkAction('a_file', 'some_file')
+            SymlinkAction(package_path='some_path', source='a_file', destination='some_file')
         ]
 
         assert result == expected
@@ -119,8 +126,8 @@ class TestParseSrcDestEntry(TestCase):
         result = SymlinkAction.parse_entries('some_path', link_entry)
 
         expected = [
-            SymlinkAction('a_file', 'some_file'),
-            SymlinkAction('other_file', 'other_file_dest'),
+            SymlinkAction(package_path='some_path', source='a_file', destination='some_file'),
+            SymlinkAction(package_path='some_path', source='other_file', destination='other_file_dest'),
         ]
 
         assert result == expected
@@ -131,8 +138,8 @@ class TestParseSrcDestEntry(TestCase):
         result = SymlinkAction.parse_entries('test/dots/pkg3', link_entry)
 
         expected = [
-            SymlinkAction('afile', '.afile'),
-            SymlinkAction('other_file', '.other_file'),
+            SymlinkAction(package_path='test/dots/pkg3', source='afile', destination='.afile'),
+            SymlinkAction(package_path='test/dots/pkg3', source='other_file', destination='.other_file'),
         ]
 
         assert result == expected
@@ -143,21 +150,20 @@ class TestParseSrcDestEntry(TestCase):
         result = SymlinkAction.parse_entries('test/dots/pkg3', link_entry)
 
         expected = [
-            SymlinkAction('afile', '.local/share/afile'),
-            SymlinkAction('other_file', '.local/share/other_file'),
+            SymlinkAction(package_path='test/dots/pkg3', source='afile', destination='.local/share/afile'),
+            SymlinkAction(package_path='test/dots/pkg3', source='other_file', destination='.local/share/other_file'),
         ]
 
         assert result == expected
 
-    def test_parse_single_entry_wildcard_ignores_spec(self):
+    def test_parse_single_entry_wildcard_ignores_spec_file(self):
+        # spec.yaml can not exist in the list
         link_entry = self.single_entry_wildcard_dict['actions'][0]['link']
 
-        result = SymlinkAction.parse_entries('test/dots/pkg1', link_entry)
+        result: Sequence[SymlinkAction] = SymlinkAction.parse_entries('test/dots/pkg1', link_entry)  # type: ignore
+        files = {l.source for l in result}
 
-        expected = []
-
-        assert result == expected
-
+        assert SPEC_FILE_NAME not in files
 
 
 class TestParseGitClone(TestCase):
@@ -208,7 +214,6 @@ class TestParseGitClone(TestCase):
     def test_parse_one_entry_raises_with_dict(self):
 
         entry = self.invalid_entry_dict['actions'][0]['gitclone'][0]
-        print(entry)
 
         with self.assertRaises(InvalidActionDescription):
             GitCloneAction.parse_one_entry('some_path', entry)
@@ -219,7 +224,11 @@ class TestParseGitClone(TestCase):
 
         result = GitCloneAction.parse_one_entry('some_path', entry)
 
-        expected = [GitCloneAction('git@url:/path', '.local/repo', branch=None)]
+        expected = [GitCloneAction(package_path='some_path',
+                                   source='git@url:/path',
+                                   destination='.local/repo',
+                                   branch=None)
+                    ]
 
         assert result == expected
 
@@ -229,7 +238,10 @@ class TestParseGitClone(TestCase):
 
         result = GitCloneAction.parse_one_entry('some_path', entry)
 
-        expected = [GitCloneAction('git@url:/path', '.local/repo', branch='main')]
+        expected = [GitCloneAction(package_path='some_path',
+                                   source='git@url:/path',
+                                   destination='.local/repo',
+                                   branch='main')]
 
         assert result == expected
 
@@ -256,13 +268,13 @@ class TestParseExecute(TestCase):
     def test_parse_single_entry(self):
         entry = self.entry_single_cmd['actions'][0]['execute']
         result = ExecuteAction.parse_entries('some_path', entry)
-        expected = [ExecuteAction(['ls'])]
+        expected = [ExecuteAction(package_path='some_path', cmds=['ls'])]
 
         assert result == expected
 
     def test_parse_multiple_entries(self):
         entry = self.entry_multiple_cmds['actions'][0]['execute']
         result = ExecuteAction.parse_entries('some_path', entry)
-        expected = [ExecuteAction(['export VAR=value', 'ls $VAR'])]
+        expected = [ExecuteAction(package_path='some_path', cmds=['export VAR=value', 'ls $VAR'])]
 
         assert result == expected

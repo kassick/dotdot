@@ -53,7 +53,7 @@ def cmd_install(args):
         print(f'Installing {pkg.name}')
         for action in pkg.actions:
             try:
-                action = action.to_final_paths(pkg.package_path)
+                action = action.materialize()
                 print(action.msg())
                 action.execute(dry_run=args.dry_run)
             except Exception as e:
