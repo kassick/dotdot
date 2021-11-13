@@ -33,19 +33,28 @@ def mk_backup_name(file_name: str) -> str:
     return os.path.join(dir_name, attempt)
 
 
+def _norm_path(pth: str) -> str:
+    pth = os.path.expanduser(pth)
+    pth = os.path.abspath(pth)
+    pth = os.path.normpath(pth)
+
+    return pth
+
+
 TBaseAction = TypeVar('TBaseAction', bound='BaseAction')
 @dataclass
 class BaseAction:
     package_path: str
 
-    def msg(self):
-        raise Exception('not implemented')
+    def msg(self) -> str:
+        return str(self)
 
     def execute(self, dry_run=False):
         """Executes the action"""
+        print('EXECUTING BASE for', type(self))
         raise Exception('not implemented')
 
-    def materialize(self: TBaseAction, package_path: str) -> TBaseAction:
+    def materialize(self: TBaseAction) -> TBaseAction:
         """Returns a new action with the paths adjusted to package_path and $HOME
 
         - any source file will be adjusted to be relative to the user's $HOME
@@ -130,19 +139,22 @@ class SrcDestAction(BaseAction):
         Makes an action paths absolute
         """
 
-        if self.source_is_local:
-            pkg_abs_path = os.path.abspath(self.package_path)
-            pkg_path_from_home = os.path.relpath(pkg_abs_path, Path.home())
-            object_path = os.path.join(pkg_path_from_home, self.source)
-        else:
-            object_path = self.source
-
         dest_abs_path = self.destination
         if not os.path.isabs(dest_abs_path):
             dest_abs_path = os.path.join('~', dest_abs_path)
 
+        dest_dirname = os.path.dirname(os.path.expanduser(dest_abs_path))
+
+        if self.source_is_local:
+            pkg_abs_path = os.path.abspath(self.package_path)
+            pkg_path_from_home = os.path.relpath(pkg_abs_path, dest_dirname)
+            object_path = os.path.join(pkg_path_from_home, self.source)
+        else:
+            object_path = self.source
+
+
         return type(self)(
-            package_path=self.package_path,
+            package_path=str(Path.home()),
             source=object_path,
             destination=dest_abs_path,
             source_is_local=self.source_is_local
@@ -171,6 +183,32 @@ class SymlinkAction(SrcDestAction):
 
 
 @dataclass
+class MkdirAction(BaseAction):
+    target_dir: str = ""
+
+    def msg(self):
+        return f'MKDIR {self.target_dir}'
+
+    def materialize(self) -> MkdirAction:
+        if os.path.isabs(self.target_dir):
+            return self
+
+        path = os.path.join('~', self.target_dir)
+
+        return MkdirAction(package_path=str(Path.home()),
+                           target_dir=path)
+
+    def execute(self, dry_run=False):
+        if not dry_run:
+            target = os.path.expanduser(self.target_dir)
+            if os.path.exists(target):
+                if not os.path.isdir(target):
+                    raise Exception(f'can not create path {target}: it exists as a file')
+                pass
+            else:
+                os.mkdir(target)
+
+@dataclass
 class SymlinkRecursiveAction(SrcDestAction):
     """An action that symlinks all files inside a folder (recursively) to the
     corresponding paths on the destination
@@ -192,21 +230,60 @@ class SymlinkRecursiveAction(SrcDestAction):
 
     _actions: List[BaseAction] = field(default_factory=list)
 
+    def msg(self) -> str:
+        lines = [
+            f'SYMLINK RECUSRIVELY {self.destination} -> {self.source}'
+        ]
 
-    def _create_sub_actions(self):
-        print('sub actions!')
-        return self
+        lines.extend(f'- {action.msg()}' for action in self._actions)
 
-    def materialize(self) -> SymlinkRecursiveAction:
+        return '\n'.join(lines)
+
+    def __post_init__(self):
+        '''
+        link_recursively: dir1
+
+        self.src: dir1
+        self.dst: .dir1
+
+        dir1 contains file1, file2
+        '''
+
+        if not self.source_is_local:
+            raise InvalidActionDescription(f'can not recursively symlink external url {self.source}')
+
+        recurse_origin = os.path.join(self.package_path, self.source)
+
+        for root, directories, files in os.walk(recurse_origin):
+            link_src_dir = os.path.relpath(root, recurse_origin)
+
+            for file_name in files:
+                src_file = os.path.join(self.source, link_src_dir, file_name)
+                src_file = os.path.normpath(src_file)
+
+                dst_path = os.path.normpath(os.path.join(self.destination, link_src_dir))
+                dst = os.path.join(dst_path, file_name)
+
+                mkdir_action = MkdirAction(package_path='~', target_dir=dst_path)
+                link_action = SymlinkAction(
+                    package_path=self.package_path,
+                    source=src_file,
+                    destination=dst
+                )
+
+                self._actions.append(mkdir_action)
+                self._actions.append(link_action)
+
+    def materialize(self):
         materialized = super().materialize()
-
-        materialized._create_sub_actions()
+        materialized._actions = [a.materialize() for a in self._actions]
 
         return materialized
 
-
     def execute(self, dry_run=False):
-        print('symlink recursive', self)
+        for action in self._actions:
+            print('-', action.msg())
+            action.execute(dry_run)
 
 
 @dataclass
@@ -250,6 +327,12 @@ class GitCloneAction(SrcDestAction):
 @dataclass
 class ExecuteAction(BaseAction):
     cmds: Sequence[str] = field(default_factory=list)
+
+    def msg(self) -> str:
+        lines = ['EXECUTE']
+        lines.extend(f'- {cmd}' for cmd in self.cmds)
+
+        return '\n'.join(lines)
 
     def execute(self, dry_run=False):
         print('execute', self)

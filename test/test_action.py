@@ -19,7 +19,7 @@ def test_final_paths_updates_object_path(mock_home):
     result = action.materialize()
 
     assert result == SymlinkAction(
-        package_path='pkg/path',
+        package_path=str(Path.home()),
         source='pkg/path/a_file',
         destination='~/.a_file'
     )
@@ -35,7 +35,7 @@ def test_final_paths_ignores_non_local_object(mock_home):
     result = action.materialize()
 
     assert result == SymlinkAction(
-        package_path='pkg/path',
+        package_path=str(Path.home()),
         source='http://some.file/at/path',
         destination='~/.a_file',
         source_is_local=False
