@@ -1,4 +1,5 @@
 import os
+import subprocess
 import textwrap
 from argparse import ArgumentParser
 
@@ -61,6 +62,33 @@ def cmd_install(args):
                 return
 
 
+def cmd_show(args):
+    dot_path = os.path.join(args.dots_path, args.dot)
+    try:
+        pkg = Package.from_dot_path(dot_path, variant=args.variant)
+    except Exception as e:
+        print(f'ERROR: Could not load dot {dot_path}')
+        print(f'{exception_to_msg(e)}: {e}')
+
+        return
+
+    print('Dot:', pkg.name)
+    if pkg.description:
+        print('Description:', pkg.description)
+
+    variant = args.variant or 'default'
+    variant_names = (
+        f'*{v}' if v == variant else v
+        for v in pkg.variants
+    )
+
+    print('Variants:', ', '.join(variant_names))
+
+    print('Actions:')
+    for action in pkg.actions:
+        action = action.materialize()
+        print(action.msg())
+
 
 def main():
     parser = ArgumentParser(
@@ -69,13 +97,13 @@ def main():
     )
 
     parser.add_argument(
-        '--dots-path', '-d', type=str,
-        help='Path where dotfiles are stored'
+        '--verbose', '-v', action='store_true',
+        default=False
     )
 
     parser.add_argument(
-        '--verbose', '-v', action='store_true',
-        default=False
+        '--dots-path', '-d', type=str,
+        help='Path where dotfiles are stored'
     )
 
     sub_parser = parser.add_subparsers(help='Avaiable commands')
@@ -83,8 +111,22 @@ def main():
     list_cmd_parser = sub_parser.add_parser('list')
     list_cmd_parser.set_defaults(func=cmd_list)
 
+    show_cmd_parser = sub_parser.add_parser('show')
+    show_cmd_parser.set_defaults(func=cmd_show)
+    show_cmd_parser.add_argument(
+        '--variant', '-V', type=str, default=None
+    )
+
+    show_cmd_parser.add_argument(
+        'dot',
+        help='Dot to show',
+    )
+
     install_cmd_parser = sub_parser.add_parser('install')
     install_cmd_parser.set_defaults(func=cmd_install)
+    install_cmd_parser.add_argument(
+        '--variant', '-V', type=str, default=None
+    )
 
 
     install_cmd_parser.add_argument(
@@ -101,7 +143,10 @@ def main():
     )
 
     args = parser.parse_args()
-    args.func(args)
+    if 'func' in args:
+        args.func(args)
+    else:
+        parser.print_help()
 
 
 if __name__ == '__main__':

@@ -3,7 +3,7 @@ from __future__ import annotations
 import os
 import os.path
 from dataclasses import dataclass
-from typing import Optional, Sequence, Tuple
+from typing import Optional, Sequence, Set, Tuple
 
 import yaml
 from yaml.error import YAMLError
@@ -18,6 +18,7 @@ class Package:
     name: str
     description: Optional[str]
     package_path: str
+    variants: Set[str]
     actions: Sequence[BaseAction]
 
     @staticmethod
@@ -29,38 +30,57 @@ class Package:
         package_path = os.path.dirname(path)
         dest = f'.{base_name}'
 
-        output_actions = [SymlinkAction(base_name, dest)
-                            #.to_final_paths(os.path.dirname(path))
-                            ]
+        actions = [SymlinkAction(base_name, dest)]
 
-        return Package(base_name, None, package_path, output_actions)
+        return Package(base_name, None, package_path, variants={'default'}, actions=actions)
 
     @staticmethod
     def _from_dot_directory(path: str) -> Package:
         # a bunch of files or folders that must be symlinked
         base_name = os.path.basename(path)
 
-        output_actions = []
+        actions = []
         for source in os.listdir(path):
             dest = f'.{source}'
 
-            output_actions.append(SymlinkAction(source, dest)
-                                  #.to_final_paths(path)
-                                  )
+            actions.append(SymlinkAction(source, dest))
 
-        return Package(base_name, None, path, output_actions)
+        return Package(base_name, None, path, variants={'default'}, actions=actions)
 
     @staticmethod
-    def from_dot_path(path: str) -> Package:
+    def from_dot_path(path: str, variant: Optional[str] = None) -> Package:
+
+        # default variant is always default
+        variant = variant or 'default'
 
         metadata_file = os.path.join(path, SPEC_FILE_NAME)
         if os.path.isfile(metadata_file):
+
+            dot_name = os.path.basename(path)
+
             # parse a yaml containing the name and actions to be performed
             with open(metadata_file, 'r') as fh:
-                data = yaml.safe_load(fh)
+                data: dict = yaml.safe_load(fh)
 
             description = data.get('description') or os.path.basename(path)
-            list = data.get('actions') or []
+
+            # check for variants
+            # if the key does not exist, create a default variant from the actions entry
+            variants = data.get('variants')
+            variants = variants or {'default': data.get('actions', [])}
+
+            try:
+                actions_list = variants[variant]
+            except KeyError:
+                raise InvalidPackageException(f"Package {dot_name} does not contain a variant named `{variant}\'")
+
+            # flatten the action list, in case we have nested actions list
+            def action_iterator(actions):
+                for action in actions:
+                    if isinstance(action, list):
+                        yield from action_iterator(action)
+                    else:
+                        yield action
 
             output_actions = []
 
@@ -75,7 +95,7 @@ class Package:
             #                 {"from": "source_path", "to": "dst_path"},
             #                ]
             #       }
-            for action_input_dict in list:
+            for action_input_dict in action_iterator(actions_list):
                 for key, entry in action_input_dict.items():
                     # lift entry to normalize it as a list
                     if isinstance(entry, str):
@@ -86,11 +106,11 @@ class Package:
                     output_actions.extend(entries)
 
             return Package(
-                os.path.basename(path),
+                dot_name,
                 description,
                 path,
-                output_actions
-                #[act.to_final_paths(path) for act in output_actions]
+                variants=set(variants.keys()),
+                actions=output_actions
             )
 
         else:

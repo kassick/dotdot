@@ -1,0 +1,22 @@
+description: A Package with variants
+
+common_actions: &common_actions
+  - execute: echo cmd1
+  - execute: |
+      echo cmd2
+      echo cmd3
+
+
+variants:
+
+  fedora: &fedora
+    - execute: echo fedora only first
+    - *common_actions
+    - execute: echo fedora only last
+
+  ubuntu:
+    - execute: echo ubuntu only first
+    - *common_actions
+    - execute: echo ubuntu only last
+
+  default: *fedora
