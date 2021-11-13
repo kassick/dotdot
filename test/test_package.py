@@ -20,8 +20,16 @@ def test_load_from_folder(mock_home):
         [SymlinkAction('test/dots/pkg1', source='file1', destination='.file1'),
          SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir1', destination='.dir1'),
          SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir2', destination='user_dir_2'),
-         ExecuteAction(package_path='test/dots/pkg1', cmds=['cmd1', 'cmd2']),
-         ExecuteAction(package_path='test/dots/pkg1', cmds=['./cmd'])
+         ExecuteAction(package_path='test/dots/pkg1',
+                       cmds=['echo cmd1',
+                             'echo cmd2',
+                             ('echo cmd3\n'
+                              '[ "a" == "b" ]\n'
+                              'echo cmd4\n'
+                              )
+                             ]
+                       ),
+         ExecuteAction(package_path='test/dots/pkg1', cmds=['./cmd.sh'])
          ]
     )
 

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import os.path
+import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional, Sequence, Type, TypeVar, Union
@@ -330,12 +331,36 @@ class ExecuteAction(BaseAction):
 
     def msg(self) -> str:
         lines = ['EXECUTE']
-        lines.extend(f'- {cmd}' for cmd in self.cmds)
+        for cmd in self.cmds:
+            _cmds = cmd.split('\n')
+            lines.append(f'- {_cmds[0]}')
+            lines.extend(f'  {_cmd}' for _cmd in _cmds[1:])
 
         return '\n'.join(lines)
 
     def execute(self, dry_run=False):
-        print('execute', self)
+        if dry_run: return
+
+        def fail_guard_generator():
+            for cmd in self.cmds:
+                yield cmd
+                cmd = fr'cmd'
+                yield f'if [ $? != 0 ] ; then echo Failed to execute command \\" \'{cmd}\' \\"; exit 1; fi'
+
+        cmds = list(fail_guard_generator())
+
+        cur_dir = os.getcwd()
+        try:
+            os.chdir(os.path.abspath(self.package_path))
+            script = '\n'.join(cmds)
+            input = script.encode('utf-8')
+            result = subprocess.run(['sh'], input=input)
+
+            if result.returncode != 0:
+                raise Exception('Failed during execute action')
+        finally:
+            os.chdir(cur_dir)
+
 
     @classmethod
     def parse_entries(cls, package_path: str, entries: Union[str, Sequence[Any]]) -> Sequence[BaseAction]:

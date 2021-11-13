@@ -6,6 +6,14 @@ actions:
     - from: dir2
       to: user_dir_2
 - execute:
-    - cmd1
-    - cmd2
-- execute: ./cmd
+    # all these commands are executed as a single linear script
+    # If the cmd of any of the lines fails, the script stops
+    - echo cmd1
+    - echo cmd2
+    # You can also provide a block of text that's part of the script
+    # In this case, the last command defines the retcode of the script
+    - |
+      echo cmd3
+      [ "a" == "b" ]
+      echo cmd4
+- execute: ./cmd.sh
