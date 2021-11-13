@@ -30,7 +30,7 @@ class Package:
         package_path = os.path.dirname(path)
         dest = f'.{base_name}'
 
-        actions = [SymlinkAction(base_name, dest)]
+        actions = [SymlinkAction(package_path, base_name, dest)]
 
         return Package(base_name, None, package_path, variants={'default'}, actions=actions)
 
