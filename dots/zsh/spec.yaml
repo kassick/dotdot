@@ -1,0 +1,9 @@
+description: ZSH setup
+
+actions:
+- git_clone:
+    - url: https://github.com/ohmyzsh/ohmyzsh.git
+      to: .oh-my-zsh
+- link:
+    - zprofile
+    - zshrc
