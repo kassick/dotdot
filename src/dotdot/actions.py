@@ -362,13 +362,12 @@ class GitCloneAction(SrcDestAction):
         if self.branch:
             branch_names = [self.branch]
         else:
-            branch_names = ['main', 'master']
+            branch_names = [repo.head.ref.name, 'main', 'master']
 
         remote_head = None
         local_head = None
 
         for branch_name in branch_names:
-
             # locate the remote head
             # skip if not found
             try:
