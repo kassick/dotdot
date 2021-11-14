@@ -213,12 +213,16 @@ class SymlinkAction(SrcDestAction):
         if not dry_run:
             dst = os.path.expanduser(self.destination)
             if os.path.exists(dst):
+                # it it's a link pointing to the same path as we want to link
+                # there's nothing to do
+                if os.path.islink(dst) and os.readlink(dst) == self.source:
+                    print('LINK ALREADY IN PLACE -- SKIPPING')
+                    return
+
                 new_name = mk_backup_name(dst)
-                print('Backing up', dst, 'to', new_name)
+                print('BACK UP', dst, 'TO', new_name)
 
                 os.rename(dst, new_name)
-
-                # TODO BACK UP
 
             os.symlink(self.source, dst)
 
