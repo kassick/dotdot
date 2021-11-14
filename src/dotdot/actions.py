@@ -12,10 +12,13 @@ from dotdot.exceptions import InvalidActionDescription, InvalidActionType
 from dotdot.spec import SPEC_FILE_NAME
 from git.repo import Repo
 
-### Action store
+# ############
+# Action store
 __ACTION_STORE = {}
 
+
 def action(name):
+
     def annotation(cls):
         if name in __ACTION_STORE:
             raise Exception(f'Error: Duplicated action {name}')
@@ -23,13 +26,15 @@ def action(name):
         __ACTION_STORE[name] = cls
 
         return cls
+
     return annotation
 
 
 def get_actions_help() -> dict:
-    return { action: action_cls.__doc__
-             for action, action_cls in __ACTION_STORE.items()
-            }
+    return {
+        action: action_cls.__doc__ for action,
+        action_cls in __ACTION_STORE.items()
+    }
 
 
 def action_class_from_str(s: str) -> Type[BaseAction]:
@@ -37,11 +42,12 @@ def action_class_from_str(s: str) -> Type[BaseAction]:
 
     try:
         return __ACTION_STORE[s]
-    except:
+    except KeyError:
         raise InvalidActionType(s)
 
 
-### Utility functions
+# #################
+# Utility functions
 def mk_backup_name(file_name: str) -> str:
     """creates a backup file name for a given file"""
     name = os.path.basename(file_name)
@@ -65,39 +71,54 @@ def mk_backup_name(file_name: str) -> str:
     return os.path.join(dir_name, attempt)
 
 
-
 TBaseAction = TypeVar('TBaseAction', bound='BaseAction')
+
+# #######
+# Actions
+
+
 @dataclass
 class BaseAction:
+    """
+    Base Action class.
+    """
+
     package_path: str
 
     def msg(self) -> str:
         return str(self)
 
-    def execute(self, dry_run=False):
+    def execute(self):
         """Executes the action"""
         print('EXECUTING BASE for', type(self))
         raise Exception('not implemented')
 
     def materialize(self: TBaseAction) -> TBaseAction:
-        """Returns a new action with the paths adjusted to package_path and $HOME
+        """Returns a new action with the paths adjusted to package_path and
+        $HOME
 
         - any source file will be adjusted to be relative to the user's $HOME
           Executing the tool from the path ~/src/dotfiles , with a package in
-          dots/pkg1, an action on the file `file1` would have the file reference
-          adjusted to ~/src/dotfiles/dots/pkg1/file1
+          dots/pkg1, an action on the file `file1` would have the file
+          reference adjusted to ~/src/dotfiles/dots/pkg1/file1
 
         - any destination path will be prefixed with ~/
         """
         return self
 
     @classmethod
-    def parse_entries(cls, package_path: str, entries: Union[str, Sequence[Any]]) -> Sequence[BaseAction]:
+    def parse_entries(
+            cls,
+            package_path: str,
+            entries: Union[str,
+                           Sequence[Any]]) -> Sequence[BaseAction]:
         """Parses an action entry list and returns the base actions"""
         raise Exception('not implemented')
 
 
 TSrcDestAction = TypeVar('TSrcDestAction', bound='SrcDestAction')
+
+
 @dataclass
 class SrcDestAction(BaseAction):
     """An action that has a source and a destination
@@ -117,7 +138,12 @@ class SrcDestAction(BaseAction):
     source_is_local: bool = True
 
     @classmethod
-    def parse_one_entry(cls, package_path: str, entry: Union[str, dict[str, str]]) -> Sequence[BaseAction]:
+    def parse_one_entry(
+            cls,
+            package_path: str,
+            entry: Union[str,
+                         dict[str,
+                              str]]) -> Sequence[BaseAction]:
         if isinstance(entry, str):
             src = entry
             dst = f'.{entry}'
@@ -136,27 +162,29 @@ class SrcDestAction(BaseAction):
                     return f'.{_path}'
 
             return [
-                cls(package_path=package_path,
+                cls(
+                    package_path=package_path,
                     source=_file,
                     destination=mk_dst(_file))
                 for _file in package_contents
                 if _file != SPEC_FILE_NAME
             ]
 
-        return [cls(package_path=package_path,
-                    source=src,
-                    destination=dst)
-                ]
+        return [cls(package_path=package_path, source=src, destination=dst)]
 
     @classmethod
-    def parse_entries(cls, package_path: str, entries: Union[str, Sequence[Any]]) -> Sequence[BaseAction]:
+    def parse_entries(
+            cls,
+            package_path: str,
+            entries: Union[str,
+                           Sequence[Any]]) -> Sequence[BaseAction]:
         if isinstance(entries, str):
             entries = [entries]
 
         return [
-            parsed
-            for e in entries
-            for parsed in cls.parse_one_entry(package_path, e)
+            parsed for e in entries
+            for parsed in cls.parse_one_entry(package_path,
+                                              e)
         ]
 
     def materialize(self: TSrcDestAction) -> TSrcDestAction:
@@ -177,13 +205,12 @@ class SrcDestAction(BaseAction):
         else:
             object_path = self.source
 
-
         return type(self)(
             package_path=str(Path.home()),
             source=object_path,
             destination=dest_abs_path,
-            source_is_local=self.source_is_local
-        )
+            source_is_local=self.source_is_local)
+
 
 @action('link')
 @dataclass
@@ -208,23 +235,21 @@ class SymlinkAction(SrcDestAction):
     def msg(self) -> str:
         return f'SYMLINK {self.destination} -> {self.source}'
 
-    def execute(self, dry_run=False):
+    def execute(self):
+        dst = os.path.expanduser(self.destination)
+        if os.path.exists(dst):
+            # it it's a link pointing to the same path as we want to link
+            # there's nothing to do
+            if os.path.islink(dst) and os.readlink(dst) == self.source:
+                print('LINK ALREADY IN PLACE -- SKIPPING')
+                return
 
-        if not dry_run:
-            dst = os.path.expanduser(self.destination)
-            if os.path.exists(dst):
-                # it it's a link pointing to the same path as we want to link
-                # there's nothing to do
-                if os.path.islink(dst) and os.readlink(dst) == self.source:
-                    print('LINK ALREADY IN PLACE -- SKIPPING')
-                    return
+            new_name = mk_backup_name(dst)
+            print('BACK UP', dst, 'TO', new_name)
 
-                new_name = mk_backup_name(dst)
-                print('BACK UP', dst, 'TO', new_name)
+            os.rename(dst, new_name)
 
-                os.rename(dst, new_name)
-
-            os.symlink(self.source, dst)
+        os.symlink(self.source, dst)
 
 
 @action('copy')
@@ -250,29 +275,27 @@ class CopyAction(SrcDestAction):
     def msg(self) -> str:
         return f'COPY {self.destination} -> {self.source}'
 
-    def execute(self, dry_run=False):
+    def execute(self):
+        # src in a SrcDestAction is always either an absolute path or
+        # relative to the user's home, but while copying we're not
+        # at the user's home, so we need to manipulate the path to make
+        # it absolute
+        src = os.path.expanduser(self.source)
+        if not os.path.isabs(src):
+            src = os.path.join(Path.home(), self.source)
 
-        if not dry_run:
-            # src in a SrcDestAction is always either an absolute path or
-            # relative to the user's home, but while copying we're not
-            # at the user's home, so we need to manipulate the path to make
-            # it absolute
-            src = os.path.expanduser(self.source)
-            if not os.path.isabs(src):
-                src = os.path.join(Path.home(), self.source)
+        dst = os.path.expanduser(self.destination)
+        if os.path.exists(dst):
+            new_name = mk_backup_name(dst)
+            print('Backing up', dst, 'to', new_name)
 
-            dst = os.path.expanduser(self.destination)
-            if os.path.exists(dst):
-                new_name = mk_backup_name(dst)
-                print('Backing up', dst, 'to', new_name)
+            os.rename(dst, new_name)
 
-                os.rename(dst, new_name)
+        if os.path.isdir(src):
+            shutil.copytree(src, dst)
+        else:
 
-            if os.path.isdir(src):
-                shutil.copytree(src, dst)
-            else:
-
-                shutil.copy(src, dst)
+            shutil.copy(src, dst)
 
 
 @action('mkdir')
@@ -300,27 +323,30 @@ class MkdirAction(BaseAction):
         if not os.path.isabs(path):
             path = os.path.join('~', self.target_dir)
 
-        return MkdirAction(package_path=str(Path.home()),
-                           target_dir=path)
+        return MkdirAction(package_path=str(Path.home()), target_dir=path)
 
-    def execute(self, dry_run=False):
-        if not dry_run:
-            target = os.path.expanduser(self.target_dir)
-            if os.path.exists(target):
-                if not os.path.isdir(target):
-                    raise Exception(f'can not create path {target}: it exists as a file')
-                pass
-            else:
-                os.makedirs(target)
+    def execute(self):
+        target = os.path.expanduser(self.target_dir)
+        if os.path.exists(target):
+            if not os.path.isdir(target):
+                raise Exception(
+                    f'can not create path {target}: it exists as a file')
+            pass
+        else:
+            os.makedirs(target)
 
     @classmethod
-    def parse_entries(cls, package_path: str, entries: Union[str, Sequence[Any]]) -> Sequence[BaseAction]:
+    def parse_entries(
+            cls,
+            package_path: str,
+            entries: Union[str,
+                           Sequence[Any]]) -> Sequence[BaseAction]:
         if isinstance(entries, str):
             entries = [entries]
 
         return [
-            MkdirAction(str(Path.home()), target_dir=entry)
-            for entry in entries
+            MkdirAction(str(Path.home()),
+                        target_dir=entry) for entry in entries
         ]
 
 
@@ -357,9 +383,7 @@ class SymlinkRecursiveAction(SrcDestAction):
     _actions: List[BaseAction] = field(default_factory=list)
 
     def msg(self) -> str:
-        lines = [
-            f'SYMLINK RECUSRIVELY {self.destination} -> {self.source}'
-        ]
+        lines = [f'SYMLINK RECUSRIVELY {self.destination} -> {self.source}']
 
         lines.extend(f'- {action.msg()}' for action in self._actions)
 
@@ -376,7 +400,8 @@ class SymlinkRecursiveAction(SrcDestAction):
         '''
 
         if not self.source_is_local:
-            raise InvalidActionDescription(f'can not recursively symlink external url {self.source}')
+            raise InvalidActionDescription(
+                f'can not recursively symlink external url {self.source}')
 
         recurse_origin = os.path.join(self.package_path, self.source)
 
@@ -387,15 +412,18 @@ class SymlinkRecursiveAction(SrcDestAction):
                 src_file = os.path.join(self.source, link_src_dir, file_name)
                 src_file = os.path.normpath(src_file)
 
-                dst_path = os.path.normpath(os.path.join(self.destination, link_src_dir))
+                dst_path = os.path.normpath(
+                    os.path.join(self.destination,
+                                 link_src_dir))
                 dst = os.path.join(dst_path, file_name)
 
-                mkdir_action = MkdirAction(package_path='~', target_dir=dst_path)
+                mkdir_action = MkdirAction(
+                    package_path='~',
+                    target_dir=dst_path)
                 link_action = SymlinkAction(
                     package_path=self.package_path,
                     source=src_file,
-                    destination=dst
-                )
+                    destination=dst)
 
                 self._actions.append(mkdir_action)
                 self._actions.append(link_action)
@@ -406,10 +434,10 @@ class SymlinkRecursiveAction(SrcDestAction):
 
         return materialized
 
-    def execute(self, dry_run=False):
+    def execute(self):
         for action in self._actions:
             print('-', action.msg())
-            action.execute(dry_run)
+            action.execute()
 
 
 @action('git_clone')
@@ -462,33 +490,45 @@ class GitCloneAction(SrcDestAction):
         return s
 
     @classmethod
-    def parse_one_entry(cls, package_path: str, entry: Union[str, dict[str, str]]) -> Sequence[BaseAction]:
+    def parse_one_entry(
+            cls,
+            package_path: str,
+            entry: Union[str,
+                         dict[str,
+                              str]]) -> Sequence[BaseAction]:
         if isinstance(entry, str):
-            raise InvalidActionDescription(f'gitclone requires a dict with fields url and to')
+            raise InvalidActionDescription(
+                'git_clone requires a dict with fields url and to')
         else:
             try:
                 src = entry['url']
                 dst = entry['to']
             except KeyError as e:
-                raise InvalidActionDescription(f'Missing gitclone field {e.args[0]}')
+                raise InvalidActionDescription(
+                    f'Missing gitclone field {e.args[0]}')
 
             branch = entry.get('branch')
 
-            return [GitCloneAction(package_path=package_path,
-                                   source=src,
-                                   destination=dst,
-                                   branch=branch,
-                                   source_is_local=False)
-                    ]
+            return [
+                GitCloneAction(
+                    package_path=package_path,
+                    source=src,
+                    destination=dst,
+                    branch=branch,
+                    source_is_local=False)
+            ]
 
-    def execute(self, dry_run=False):
+    def execute(self):
         if os.path.isfile(self.destination):
-            raise Exception(f'Can not initialize a git repo at {self.destination}: it\'s a file')
+            raise Exception(
+                f"Can not initialize a git repo at {self.destination}: "
+                "it's a file"
+            )
 
         # create or load the repo
         try:
             repo = Repo(self.destination)
-        except:
+        except Exception:
             print(f'- Initialize repo at {self.destination}')
             repo = Repo.init(self.destination)
             repo.create_remote('origin', self.source)
@@ -500,11 +540,9 @@ class GitCloneAction(SrcDestAction):
             # find remote by url or create one
             try:
                 dot_remote = next(
-                    remote
-                    for remote in repo.remotes
-                    if remote.url == self.source
-                )
-            except:
+                    remote for remote in repo.remotes
+                    if remote.url == self.source)
+            except Exception:
                 print(f'- Add remote {self.source}')
                 dot_remote = repo.create_remote('from_dot_setup', self.source)
 
@@ -525,13 +563,13 @@ class GitCloneAction(SrcDestAction):
             # skip if not found
             try:
                 remote_head = dot_remote.refs[branch_name]
-            except:
+            except Exception:
                 continue
 
             # locate or create local head and set it to track the remote head
             try:
                 local_head = repo.refs[branch_name]
-            except:
+            except Exception:
                 remote_head.checkout()
                 local_head = repo.create_head(f'refs/heads/{branch_name}')
                 local_head.set_tracking_branch(remote_head)
@@ -599,16 +637,19 @@ class ExecuteAction(BaseAction):
 
         return '\n'.join(lines)
 
-    def execute(self, dry_run=False):
-        if dry_run: return
+    def execute(self):
 
         def fail_guard_generator():
             for cmd in self.cmds:
                 yield cmd
-                cmd = fr'cmd'
-                yield f'if [ $? != 0 ] ; then echo Failed to execute command \\" \'{cmd}\' \\"; exit 1; fi'
+                yield '''
+                if [ $? != 0 ] ; then
+                    echo Failed to execute last command ;
+                    exit 1;
+                fi
+                '''
 
-        cmds = list(fail_guard_generator())
+        cmds = fail_guard_generator()
 
         cur_dir = os.getcwd()
         try:
@@ -622,16 +663,18 @@ class ExecuteAction(BaseAction):
         finally:
             os.chdir(cur_dir)
 
-
     @classmethod
-    def parse_entries(cls, package_path: str, entries: Union[str, Sequence[Any]]) -> Sequence[BaseAction]:
+    def parse_entries(
+            cls,
+            package_path: str,
+            entries: Union[str,
+                           Sequence[Any]]) -> Sequence[BaseAction]:
         if isinstance(entries, str):
             entries = [entries]
 
         invalid_entries = [e for e in entries if not isinstance(e, str)]
         if invalid_entries:
-            raise InvalidActionDescription(f'execute action expects strings, received {invalid_entries}')
+            raise InvalidActionDescription(
+                f'execute action expects strings, received {invalid_entries}')
 
-        return [
-            ExecuteAction(package_path=package_path, cmds=entries)
-        ]
+        return [ExecuteAction(package_path=package_path, cmds=entries)]

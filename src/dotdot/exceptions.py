@@ -1,5 +1,6 @@
 class InvalidActionType(Exception):
     """Some action in the spec file is not valid"""
+
     def __init__(self, action_str):
         msg = f"Invalid action `{action_str}'"
         super().__init__(msg)

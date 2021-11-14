@@ -4,9 +4,11 @@ import pytest
 from dotdot.pkg import Package
 from dotdot.actions import GitCloneAction, SymlinkAction, SymlinkRecursiveAction, ExecuteAction, CopyAction
 
+
 @pytest.fixture
 def mock_home(monkeypatch):
     monkeypatch.setenv('HOME', os.getcwd())
+
 
 def test_load_from_folder(mock_home):
     pkg = Package.from_dot_path('test/dots/pkg1')
@@ -19,23 +21,38 @@ def test_load_from_folder(mock_home):
         'test/dots/pkg1',
         variants={'default'},
         actions=[
-            SymlinkAction('test/dots/pkg1', source='file1', destination='.file1'),
-            CopyAction('test/dots/pkg1', source='file1', destination='file1_again'),
-            SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir1', destination='.dir1'),
-            SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir2', destination='user_dir_2'),
+            SymlinkAction(
+                'test/dots/pkg1',
+                source='file1',
+                destination='.file1'),
+            CopyAction(
+                'test/dots/pkg1',
+                source='file1',
+                destination='file1_again'),
+            SymlinkRecursiveAction(
+                package_path='test/dots/pkg1',
+                source='dir1',
+                destination='.dir1'),
+            SymlinkRecursiveAction(
+                package_path='test/dots/pkg1',
+                source='dir2',
+                destination='user_dir_2'),
+            ExecuteAction(
+                package_path='test/dots/pkg1',
+                cmds=[
+                    'echo cmd1',
+                    'echo cmd2',
+                    ('echo cmd3\n'
+                     '[ "a" == "b" ]\n'
+                     'echo cmd4\n')
+                ]),
             ExecuteAction(package_path='test/dots/pkg1',
-                          cmds=['echo cmd1',
-                                'echo cmd2',
-                                ('echo cmd3\n'
-                                 '[ "a" == "b" ]\n'
-                                 'echo cmd4\n'
-                                 )
-                                ]
-                          ),
-            ExecuteAction(package_path='test/dots/pkg1', cmds=['./cmd.sh']),
-            GitCloneAction(package_path='test/dots/pkg1', source='https://github.com/kassick/evil-iedit-state', destination='tmp/evil-iedit-state')
-        ]
-    )
+                          cmds=['./cmd.sh']),
+            GitCloneAction(
+                package_path='test/dots/pkg1',
+                source='https://github.com/kassick/evil-iedit-state',
+                destination='tmp/evil-iedit-state')
+        ])
 
     assert expected == pkg
 
@@ -52,9 +69,11 @@ def test_load_from_file(mock_home):
         None,
         'test/dots',
         variants={'default'},
-        actions=[SymlinkAction('test/dots', 'pkg2', '.pkg2'),
-         ]
-    )
+        actions=[
+            SymlinkAction('test/dots',
+                          'pkg2',
+                          '.pkg2'),
+        ])
 
     assert expected == pkg
 
@@ -73,10 +92,11 @@ def test_load_from_folder_with_no_spec(mock_home):
         'test/dots/pkg3',
         variants={'default'},
         actions=[
-            SymlinkAction('afile', '.afile'),
-            SymlinkAction('other_file', '.other_file')
-        ]
-    )
+            SymlinkAction('afile',
+                          '.afile'),
+            SymlinkAction('other_file',
+                          '.other_file')
+        ])
 
     assert expected == pkg
 
@@ -89,6 +109,7 @@ def test_scan(mock_home):
 
     assert pkg_names == expected
 
+
 def test_variant(mock_home):
     pkg_path = 'test/dots/pkg6_variants'
     result = Package.from_dot_path(pkg_path, variant='fedora')
@@ -100,13 +121,14 @@ def test_variant(mock_home):
         'pkg6_variants',
         'A Package with variants',
         pkg_path,
-        variants={'fedora', 'ubuntu', 'default'},
+        variants={'fedora',
+                  'ubuntu',
+                  'default'},
         actions=[
             exe(['echo fedora only first']),
             exe(['echo cmd1']),
             exe(['echo cmd2\necho cmd3\n']),
             exe(['echo fedora only last'])
-        ]
-    )
+        ])
 
     assert result == expected

@@ -1,27 +1,31 @@
 import os
-import subprocess
+import sys
 import textwrap
 from argparse import ArgumentParser
 
 from yaml.error import YAMLError
-from dotdot.actions import get_actions_help
 
+from dotdot.actions import get_actions_help
 from dotdot.exceptions import InvalidActionType, InvalidPackageException
 from dotdot.pkg import Package
 
 
 def exception_to_msg(ex: Exception) -> str:
     if isinstance(ex, InvalidPackageException):
-        return f'path contains an invalid dot'
+        return 'path contains an invalid dot'
     elif isinstance(ex, YAMLError):
-        return f'Invalid spec'
+        return 'Invalid spec'
     elif isinstance(ex, InvalidActionType):
-        return f'Spec contains invalid actions'
+        return 'Spec contains invalid actions'
     else:
         return str(ex)
 
 
 def cmd_list(args):
+    if not os.path.isdir(args.dots_path):
+        print('Invalid dots path', args.dots_path)
+        sys.exit(1)
+
     pkgs, errors = Package.scan(args.dots_path)
 
     if errors:
@@ -57,7 +61,7 @@ def cmd_install(args):
             try:
                 action = action.materialize()
                 print(action.msg())
-                action.execute(dry_run=args.dry_run)
+                action.execute()
             except Exception as e:
                 print('Error while executing action:', str(e))
                 return
@@ -78,10 +82,7 @@ def cmd_show(args):
         print('Description:', pkg.description)
 
     variant = args.variant or 'default'
-    variant_names = (
-        f'*{v}' if v == variant else v
-        for v in pkg.variants
-    )
+    variant_names = (f'*{v}' if v == variant else v for v in pkg.variants)
 
     print('Variants:', ', '.join(variant_names))
 
@@ -99,11 +100,10 @@ def cmd_help_actions(args):
         print('Available actions:')
         for action, action_help in help_dict.items():
             try:
-                desc = next(line
-                            for line in action_help.split('\n')
-                            if len(line.strip())
-                            )
-            except:
+                desc = next(
+                    line for line in action_help.split('\n')
+                    if len(line.strip()))
+            except Exception:
                 desc = None
 
             line = action
@@ -126,35 +126,28 @@ def cmd_help_actions(args):
 def main():
     parser = ArgumentParser(
         'dotdot',
-        description='''A tool to manage dotfiles'''
-    )
+        description='''A tool to manage dotfiles''')
+
+    parser.add_argument('--verbose', '-v', action='store_true', default=False)
 
     parser.add_argument(
-        '--verbose', '-v', action='store_true',
-        default=False
-    )
-
-    parser.add_argument(
-        '--dots-path', '-d', type=str,
-        help='Path where dotfiles are stored'
-    )
+        '--dots-path',
+        '-d',
+        type=str,
+        help='Path where dotfiles are stored')
 
     sub_parser = parser.add_subparsers(help='Avaiable commands')
 
     help_actions_parser = sub_parser.add_parser('help-actions')
     help_actions_parser.set_defaults(func=cmd_help_actions)
-    help_actions_parser.add_argument(
-        'action', nargs='?'
-    )
+    help_actions_parser.add_argument('action', nargs='?')
 
     list_cmd_parser = sub_parser.add_parser('list')
     list_cmd_parser.set_defaults(func=cmd_list)
 
     show_cmd_parser = sub_parser.add_parser('show')
     show_cmd_parser.set_defaults(func=cmd_show)
-    show_cmd_parser.add_argument(
-        '--variant', '-V', type=str, default=None
-    )
+    show_cmd_parser.add_argument('--variant', '-V', type=str, default=None)
 
     show_cmd_parser.add_argument(
         'dot',
@@ -163,23 +156,9 @@ def main():
 
     install_cmd_parser = sub_parser.add_parser('install')
     install_cmd_parser.set_defaults(func=cmd_install)
-    install_cmd_parser.add_argument(
-        '--variant', '-V', type=str, default=None
-    )
+    install_cmd_parser.add_argument('--variant', '-V', type=str, default=None)
 
-
-    install_cmd_parser.add_argument(
-        '--dry-run',
-        help='Do not execute the actions',
-        action='store_true',
-        default=False
-    )
-
-    install_cmd_parser.add_argument(
-        'dot',
-        help='Dots to install',
-        nargs='+'
-    )
+    install_cmd_parser.add_argument('dot', help='Dots to install', nargs='+')
 
     args = parser.parse_args()
     if 'func' in args:
