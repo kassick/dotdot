@@ -6,7 +6,7 @@ import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Type, TypeVar, Union
+from typing import Any, Optional, Sequence, Type, TypeVar, Union
 
 from dotdot.exceptions import InvalidActionDescription, InvalidActionType
 from dotdot.spec import SPEC_FILE_NAME
@@ -83,6 +83,7 @@ def mk_parent_dirs(dst: str):
 
 
 TBaseAction = TypeVar('TBaseAction', bound='BaseAction')
+
 
 @dataclass
 class BaseAction:
@@ -372,7 +373,6 @@ class MkdirAction(BaseAction):
             if not os.path.isdir(target):
                 raise Exception(
                     f'can not create path {target}: it exists as a file')
-            pass
         else:
             os.makedirs(target)
 
@@ -422,13 +422,7 @@ class SymlinkRecursiveAction(SrcDestAction):
     """
 
     def msg(self) -> str:
-        #lines = [
         return f'SYMLINK RECUSRIVELY {self.destination} -> {self.source}'
-        #]
-
-        #lines.extend(f'- {action.msg()}' for action in self._actions)
-
-        #return '\n'.join(lines)
 
     def build_actions(self) -> Sequence[BaseAction]:
         '''
@@ -476,7 +470,9 @@ class SymlinkRecursiveAction(SrcDestAction):
             package_path: str,
             entries: Union[str, Sequence[Any]]
     ) -> Sequence[BaseAction]:
+
         actions = super().parse_entries(package_path, entries)
+
         def action_yielder():
             for action in actions:
                 a: SymlinkRecursiveAction = action  # type: ignore
