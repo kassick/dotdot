@@ -2,9 +2,19 @@
 
 Yeah, yet another dotfiles manager.
 
-This is an iteration over a previous solution that became annoying to maintain. As I still wanted the same overall behaviour -- create links in my home pointing to my dotfiles repo -- so I decided to create a new tool with the desired behaviour instead of migrate my setup to chezmoi or something else.
+This is an iteration over a previous solution that became annoying to maintain.
+As I still wanted the same overall behaviour -- create links in my home pointing
+to my dotfiles repo -- so I decided to create a new tool with the desired
+behaviour instead of migrate my setup to chezmoi or something else.
 
-BTW, check [this link](https://dotfiles.github.io/utilities/) for a comprehensive list of tools that are way more powerful than this one.
+BTW, check [this link](https://dotfiles.github.io/utilities/) for a
+comprehensive list of tools that are way more powerful than this one.
+
+# Installing
+
+```
+$ pip install git+https://github.com/kassick/dotdot
+```
 
 # Creating dots
 
@@ -23,11 +33,13 @@ BTW, check [this link](https://dotfiles.github.io/utilities/) for a comprehensiv
 
 ## Spec-file based setup
 
-For more complex setups, you must create a `spec.yaml` file inside a folder and specify the actions
+For more complex setups, you must create a `spec.yaml` file inside a folder and
+specify the actions
 
 ### Clonning a repository
 
-For an up-to-date *oh-my-zsh*, we must have the repository cloned in locally. We can specify the process in the spec.yaml this way:
+For an up-to-date *oh-my-zsh*, we must have the repository cloned in locally. We
+can specify the process in the spec.yaml this way:
 
 1. Create `dots/zsh/zshrc` and `dots/zsh/zprofile`
 2. Create `dots/zsh/spec.yaml` with contents
@@ -45,7 +57,8 @@ For an up-to-date *oh-my-zsh*, we must have the repository cloned in locally. We
 ```
 
 3. Run `dotdot -d dots install zsh`
-4. You should now have a git repo under `~/.oh-my-zsh` and files `~/.zshrc` and `~/.zprofile` pointing to the copies under `dots/zsh`
+4. You should now have a git repo under `~/.oh-my-zsh` and files `~/.zshrc` and
+   `~/.zprofile` pointing to the copies under `dots/zsh`
 
 ### Running commands
 
@@ -63,21 +76,29 @@ actions:
 
 ### Symlinking files under some path
 
-Sometimes the destination of your files is somewhat deep under your home (e.g. `.local/share/fonts`) and you don't want to list every one of the fonts in the spec file. In this case, you can use the `symlink_recursive` rule
+Sometimes the destination of your files is somewhat deep under your home (e.g.
+`.local/share/fonts`) and you don't want to list every one of the fonts in the
+spec file. In this case, you can use the `symlink_recursive` rule
 
 1. Store your fonts under `dots/fonts/local/share/fonts`
-2. Tell dotdot to symlink every file under local to it's corresponding path under $HOME:
+2. Tell dotdot to symlink every file under local to it's corresponding path
+   under $HOME:
 ```yaml
 description: Fonts
 actions:
 - symlink_recursive: local
 ```
-3. All files under `dots/fonts/local/share/fonts` will be symlinked to `~/.local/share/fonts`.
+3. All files under `dots/fonts/local/share/fonts` will be symlinked to
+   `~/.local/share/fonts`.
 
 ### Variants
 
-Say that you need a dot to run one command under ubuntu, but another one under fedora? That's what variants are for.
-Create the named variants under the `variants` key and specify different actions for any variant you want. Use yaml references if you want to avoid repeating yourself.
+Say that you need a dot to run one command under ubuntu, but another one under
+fedora? That's what variants are for.
+
+Create the named variants under the `variants` key and specify different actions
+for any variant you want. Use yaml references if you want to avoid repeating
+yourself.
 
 ```yaml
 description: A Package with variants
@@ -142,7 +163,9 @@ actions:
   - file2
 ```
 
-- Multiple items with source and origin specified. When specifying a destination, it's up to the user to create a hidden file or a visible one.
+- Multiple items with source and origin specified. When specifying a
+  destination, it's up to the user to create a hidden file or a visible one.
+
 ```yaml
 actions:
 - link:
@@ -156,7 +179,10 @@ actions:
   - file1
 ```
 
-The tool can handle absolute paths in the `to` field, but this tool us supposed to be a dot-file setup tool, not some full-fledged installer. In this case, you'd need to call the tool with sudo.
+The tool can handle absolute paths in the `to` field, but this tool us supposed
+to be a dot-file setup tool, not some full-fledged installer. In this case,
+you'd need to call the tool with sudo.
+
 ```yaml
 actions:
 - link:
@@ -166,7 +192,8 @@ actions:
 
 ## `copy`
 
-Copies a file from the package directory to the user's home. Same syntax as `link`
+Copies a file from the package directory to the user's home. Same syntax as
+`link`
 
 ```yaml
 - actions:
@@ -175,9 +202,12 @@ Copies a file from the package directory to the user's home. Same syntax as `lin
 
 ## `symlink_recursively`
 
-Recreates a tree structure under the destination and links all files present in the target.
+Recreates a tree structure under the destination and links all files present in
+the target.
 
-- Link all files under the path to their corresponding paths at the home directory
+- Link all files under the path to their corresponding paths at the home
+  directory
+
 ```yaml
 actions:
 # local contains:
@@ -191,6 +221,7 @@ actions:
 ```
 
 - Multiple items
+
 ```yaml
 actions:
 # will scan for files under local and etc.d, creating corresponding links under ~/.local and ~/.etc.d
@@ -199,7 +230,9 @@ actions:
   - etc.d
 ```
 
-- Multiple items with source and origin specified. When specifying a destination, it's up to the user to create a hidden file or a visible one.
+- Multiple items with source and origin specified. When specifying a
+  destination, it's up to the user to create a hidden file or a visible one.
+
 ```yaml
 actions:
 - link_recursively:
@@ -214,7 +247,9 @@ actions:
 
 The execute rule runs a sequence of commands and verify their exit-status.
 
-Execute can have a single command that will be executed at the same path as the `spec.yaml` file:
+Execute can have a single command that will be executed at the same path as the
+`spec.yaml` file:
+
 ```yaml
 actions:
 # requires setup.sh present and executable
@@ -223,7 +258,10 @@ actions:
 - execute: sh setup.sh
 ```
 
-Commands under a same `execute:` rule are glued together ane executed in a same `sh` process. In between every command, the exit-status will be checked and the script will be interrupted in case of error:
+Commands under a same `execute:` rule are glued together ane executed in a same
+`sh` process. In between every command, the exit-status will be checked and the
+script will be interrupted in case of error:
+
 ```yaml
 actions:
 - execute:
@@ -232,7 +270,9 @@ actions:
     - echo this command never executes
 ```
 
-You can use variable definitions unser the same `execute:` rule -- but not between different ones:
+You can use variable definitions unser the same `execute:` rule -- but not
+between different ones:
+
 ```yaml
 actions:
 - execute:
@@ -241,7 +281,10 @@ actions:
 - execute: echo $GUESS   # will produce no output
 ```
 
-Because every item under `execute:` will be checked for status, we can not use `if`, `for`, `case`, etc. in different items, but we can give provide a single multiline item:
+Because every item under `execute:` will be checked for status, we can not use
+`if`, `for`, `case`, etc. in different items, but we can give provide a single
+multiline item:
+
 ```yaml
 actions:
 - execute:
@@ -257,7 +300,9 @@ actions:
 
 ## `git_clone`
 
-Clones a git repository to some destination path. If the path already exists as a git repo, it pulls changes from the origin.
+Clones a git repository to some destination path. If the path already exists as
+a git repo, it pulls changes from the origin.
+
 ```yaml
 actions:
 - git_clone:
@@ -267,7 +312,8 @@ actions:
       branch: develop
 ```
 
-`branch` is optional. When branch is not defined, the tool will pick the first of the following branches that exist on remote:
+`branch` is optional. When branch is not defined, the tool will pick the first
+of the following branches that exist on remote:
 - The current ref
 - `main`
 - `master`
