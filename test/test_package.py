@@ -33,6 +33,16 @@ def test_load_from_folder(mock_home):
                 package_path='test/dots/pkg1',
                 source='dir1',
                 destination='.dir1'),
+            SymlinkAction(
+                package_path='test/dots/pkg1',
+                source='dir1/file_in_dir_1',
+                destination='.dir1/file_in_dir_1',
+            ),
+            SymlinkAction(
+                package_path='test/dots/pkg1',
+                source='dir1/subdir1/file_in_subdir1',
+                destination='.dir1/subdir1/file_in_subdir1',
+            ),
             SymlinkRecursiveAction(
                 package_path='test/dots/pkg1',
                 source='dir2',
