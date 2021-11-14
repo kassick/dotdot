@@ -2,7 +2,7 @@ import os
 import pytest
 
 from dotdot.dot import Package
-from dotdot.actions import GitCloneAction, SymlinkAction, SymlinkRecursiveAction, ExecuteAction
+from dotdot.actions import GitCloneAction, SymlinkAction, SymlinkRecursiveAction, ExecuteAction, CopyAction
 
 @pytest.fixture
 def mock_home(monkeypatch):
@@ -20,6 +20,7 @@ def test_load_from_folder(mock_home):
         variants={'default'},
         actions=[
             SymlinkAction('test/dots/pkg1', source='file1', destination='.file1'),
+            CopyAction('test/dots/pkg1', source='file1', destination='file1_again'),
             SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir1', destination='.dir1'),
             SymlinkRecursiveAction(package_path='test/dots/pkg1', source='dir2', destination='user_dir_2'),
             ExecuteAction(package_path='test/dots/pkg1',
@@ -51,7 +52,7 @@ def test_load_from_file(mock_home):
         None,
         'test/dots',
         variants={'default'},
-        actions=[SymlinkAction('pkg2', '.pkg2'),
+        actions=[SymlinkAction('test/dots', 'pkg2', '.pkg2'),
          ]
     )
 

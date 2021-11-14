@@ -115,6 +115,8 @@ Run `dotdot --help` to get the full help
 - `dotdot -d dots show -V fedora pkg1`: Shows the actions that would be executed under the `fedora` variant
 - `dotdot -d dots install pkg1`: Install pkg1. It there are variants, it will use the default one.
 - `dotdot -d dots install -V fedora pkg1`: Install pkg1 using the rules under the `fedora` variant.
+- `dotdot help-actions`: Lists all actions that can be used in the spec file
+- `dotdot help-actions link`: Shows detailed help for the link action
 
 # Actions documentation
 
@@ -160,6 +162,15 @@ actions:
 - link:
   - from: launcher.desktop
     to: /usr/share/applications/launcher.desktop
+```
+
+## `copy`
+
+Copies a file from the package directory to the user's home. Same syntax as `link`
+
+```yaml
+- actions:
+  - copy: file1
 ```
 
 ## `symlink_recursively`

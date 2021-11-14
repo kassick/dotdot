@@ -2,16 +2,46 @@ from __future__ import annotations
 
 import os
 import os.path
+import shutil
 import subprocess
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any, List, Optional, Sequence, Type, TypeVar, Union
-from git.repo import Repo
 
 from dotdot.exceptions import InvalidActionDescription, InvalidActionType
 from dotdot.spec import SPEC_FILE_NAME
+from git.repo import Repo
+
+### Action store
+__ACTION_STORE = {}
+
+def action(name):
+    def annotation(cls):
+        if name in __ACTION_STORE:
+            raise Exception(f'Error: Duplicated action {name}')
+
+        __ACTION_STORE[name] = cls
+
+        return cls
+    return annotation
 
 
+def get_actions_help() -> dict:
+    return { action: action_cls.__doc__
+             for action, action_cls in __ACTION_STORE.items()
+            }
+
+
+def action_class_from_str(s: str) -> Type[BaseAction]:
+    s = s.lower()
+
+    try:
+        return __ACTION_STORE[s]
+    except:
+        raise InvalidActionType(s)
+
+
+### Utility functions
 def mk_backup_name(file_name: str) -> str:
     """creates a backup file name for a given file"""
     name = os.path.basename(file_name)
@@ -34,13 +64,6 @@ def mk_backup_name(file_name: str) -> str:
 
     return os.path.join(dir_name, attempt)
 
-
-def _norm_path(pth: str) -> str:
-    pth = os.path.expanduser(pth)
-    pth = os.path.abspath(pth)
-    pth = os.path.normpath(pth)
-
-    return pth
 
 
 TBaseAction = TypeVar('TBaseAction', bound='BaseAction')
@@ -162,9 +185,25 @@ class SrcDestAction(BaseAction):
             source_is_local=self.source_is_local
         )
 
+@action('link')
 @dataclass
 class SymlinkAction(SrcDestAction):
-    """An action that symlinks a file to the a destination"""
+    """Symlinks a file or directory to a destination
+
+    Links `file` to ~/.file
+      - link: file
+
+    Links `file1` to ~/.file1, `file2` to ~/.file2
+      - link:
+          - file1
+          - file2
+
+    Links `file1` to ~/.file1, `file2` to ~/some/path/file2
+      - link:
+          - file1
+          - from: file2
+            to: some/path/file2
+    """
 
     def msg(self) -> str:
         return f'SYMLINK {self.destination} -> {self.source}'
@@ -184,18 +223,69 @@ class SymlinkAction(SrcDestAction):
             os.symlink(self.source, dst)
 
 
+@action('copy')
+@dataclass
+class CopyAction(SrcDestAction):
+    """Copies a file or directory to a destination
+
+    Copies `file` to ~/.file
+      - copy: file
+
+    Copies `file1` to ~/.file1, `file2` to ~/.file2
+      - copy:
+          - file1
+          - file2
+
+    Copies `file1` to ~/.file1, `file2` to ~/some/path/file2
+      - copy:
+          - file1
+          - from: file2
+            to: some/path/file2
+    """
+
+    def msg(self) -> str:
+        return f'COPY {self.destination} -> {self.source}'
+
+    def execute(self, dry_run=False):
+
+        if not dry_run:
+            dst = os.path.expanduser(self.destination)
+            if os.path.exists(dst):
+                new_name = mk_backup_name(dst)
+                print('Backing up', dst, 'to', new_name)
+
+                os.rename(dst, new_name)
+
+            if os.path.isdir(self.source):
+                shutil.copytree(self.source, dst)
+            else:
+                shutil.copy(self.source, dst)
+
+
+@action('mkdir')
 @dataclass
 class MkdirAction(BaseAction):
+    """Creates a directory tree
+
+    Creates directories ~/.local/, if it doesn't already exist, and directory
+    share under ~/.local
+        - mkdir: .local/share
+
+    Creates directories ~/.local/share and ~/.local/etc
+        - mkdir:
+            - .local/share
+            - .local/etc
+    """
+
     target_dir: str = ""
 
     def msg(self):
         return f'MKDIR {self.target_dir}'
 
     def materialize(self) -> MkdirAction:
-        if os.path.isabs(self.target_dir):
-            return self
-
-        path = os.path.join('~', self.target_dir)
+        path = os.path.expanduser(self.target_dir)
+        if not os.path.isabs(path):
+            path = os.path.join('~', self.target_dir)
 
         return MkdirAction(package_path=str(Path.home()),
                            target_dir=path)
@@ -208,27 +298,47 @@ class MkdirAction(BaseAction):
                     raise Exception(f'can not create path {target}: it exists as a file')
                 pass
             else:
-                os.mkdir(target)
+                os.makedirs(target)
+
+    @classmethod
+    def parse_entries(cls, package_path: str, entries: Union[str, Sequence[Any]]) -> Sequence[BaseAction]:
+        if isinstance(entries, str):
+            entries = [entries]
+
+        return [
+            MkdirAction(str(Path.home()), target_dir=entry)
+            for entry in entries
+        ]
 
 
+@action('link_recursively')
 @dataclass
 class SymlinkRecursiveAction(SrcDestAction):
-    """An action that symlinks all files inside a folder (recursively) to the
-    corresponding paths on the destination
+    """Symlinks all files, recursively
 
-    Given a folder with this structure:
-      folder1/file1
-      folder1/subfolder1/file2
-      folder1/subfolder1/file3
+    Given the following tree on the dot folder:
+    - dir1/subdir1/file1
+    - dir1/file2
+    - dir2/subdir2/file3
 
-    SymlinkRecursiveAction('folder1', 'dest_folder_1') will generate the
-    following symlinks and path structure:
-      ~/dest_folder_1/file1 -> ~/$PACKAGE_PATH/folder1/file1
-      ~/dest_folder_1/subfolder1/file2 -> ~/$PACKAGE_PATH/folder1/subfolder1/file2
-      ~/dest_folder_1/subfolder1/file3 -> ~/$PACKAGE_PATH/folder1/subfolder1/file3
+    Creates links ~/.dir1/subdir1/file1 , ~/.dir1/file2
+        - link_recursively: dir1
 
-    where $PACKAGE_PATH is the path of the package containing folder1
 
+    Creates links ~/.dir1/subdir1/file1 , ~/.dir1/file2 , ~/.dir2/subdir2/file3
+        - link_recursively:
+            - dir1
+            - dir2
+
+    Creates ~/.elsewhere/else/subdir1/file1 and ~/.elsewhere/else/file2
+        - link_recursively:
+            - from: dir1
+              to: .elsewhere/else
+
+    Creates ~/.elsewhere/else/file3
+        - link_recursively:
+            - from: dir2/subdir2
+              to: .elsewhere/else
     """
 
     _actions: List[BaseAction] = field(default_factory=list)
@@ -289,19 +399,45 @@ class SymlinkRecursiveAction(SrcDestAction):
             action.execute(dry_run)
 
 
+@action('git_clone')
 @dataclass
 class GitCloneAction(SrcDestAction):
-    """An action that clones or updates a git repository to a given folder
+    """Clones a git repository
 
-    TODO: How to add branch?
-    TODO: Maybe override parse_one_entry? adding
+    When the destination path does not exist,
+        - git_clone:
+          - from: git@url/path
+            to: some/path
+    will create the path and clone the repo, using either `main` or `master` as
+    the branch
 
-          |    actions:
-          |    - gitclone: git@some.repo/path/last
+    When the destination path does not exist,
+        - git_clone:
+          - from: git@url/path
+            to: some/path
+            branch: develop
+    will create the path and clone the repo, using either `develop` as the
+    branch
 
-          would symlink to ~/git@some.repo/path instead of ~/last, so we probably need
-          to really rewrite the classmethod
+    If destination exists but it's not a git repo, the tool will initialize it
+    as an empty repo.
+
+    When the destination is an existing repopath exists, this action will try
+    to pull changes from the remote. Depending on the state of the repo,
+    though, the baviour may change:
+
+    - No `branch` specified:
+        - local ref is `main`, remote has ref `main`:
+          pull changes
+        - local ref is `master`, remote has ref `main`:
+          checkout `main` and pull changes
+        - local ref is `master', remote has ref `master`, but not `main`:
+          pull changes
+        - local ref is `new-feature`, remote has ref `main`:
+          checkout `main`, pull changes - Branch `develop` defined in the spec:
+          always checkout `develop` and pull from the origin
     """
+
     branch: Optional[str] = None
     source_is_local: bool = False
 
@@ -344,16 +480,20 @@ class GitCloneAction(SrcDestAction):
             repo = Repo.init(self.destination)
             repo.create_remote('origin', self.source)
 
-        # find remote by url or create one
-        try:
-            dot_remote = next(
-                remote
-                for remote in repo.remotes
-                if remote.url == self.source
-            )
-        except:
-            print(f'- Add remote {self.source}')
-            dot_remote = repo.create_remote('from_dot_setup', self.source)
+        if not len(repo.remotes):
+            # bare repo, use origin
+            dot_remote = repo.create_remote('origin', self.source)
+        else:
+            # find remote by url or create one
+            try:
+                dot_remote = next(
+                    remote
+                    for remote in repo.remotes
+                    if remote.url == self.source
+                )
+            except:
+                print(f'- Add remote {self.source}')
+                dot_remote = repo.create_remote('from_dot_setup', self.source)
 
         print('- Fetching changes')
         dot_remote.fetch()
@@ -393,8 +533,48 @@ class GitCloneAction(SrcDestAction):
         dot_remote.pull()
 
 
+@action('execute')
 @dataclass
 class ExecuteAction(BaseAction):
+    """Executes commands under a new shell
+
+    The command will be executed on the same path as the spec file
+
+    Executes command `cmd`
+        - execute: cmd
+
+    Executes commands `cmd1`, `cmd2` and `cmd3`, stopping the execution if
+    any command fails:
+        - execute:
+            - cmd1
+            - cmd2
+            - cmd3
+
+
+    The execution checks for the exist-status after the execution of every item
+    under the `execute` rule.
+
+    Executes `cmd1` and `cmd2`, but does not pause execution if `cmd1` fails:
+        - execute:
+            - |
+                cmd1
+                cmd2
+            - cmd3
+
+    Every 'execute:' rule runs under a shell. You can use variables and control
+    flow, but every item under execute must be an independent command, so if,
+    for, case, etc must be given as a single item.
+        - execute:
+            - read GUESS
+            - |
+                if [ "$GUESS" == 'correct' ]; then
+                   echo Correct
+                else
+                   false
+                fi
+            - echo You get a prize
+    """
+
     cmds: Sequence[str] = field(default_factory=list)
 
     def msg(self) -> str:
@@ -442,14 +622,3 @@ class ExecuteAction(BaseAction):
         return [
             ExecuteAction(package_path=package_path, cmds=entries)
         ]
-
-
-def action_class_from_str(s: str) -> Type[BaseAction]:
-    s = s.lower()
-
-    if s == 'link': return SymlinkAction
-    elif s == 'link_recursively': return SymlinkRecursiveAction
-    elif s == 'git_clone': return GitCloneAction
-    elif s == 'execute': return ExecuteAction
-    else:
-        raise InvalidActionType(s)

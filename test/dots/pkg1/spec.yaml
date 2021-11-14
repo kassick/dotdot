@@ -1,6 +1,9 @@
 description: package1
 actions:
 - link: file1
+- copy:
+    - from: file1
+      to: file1_again
 - link_recursively:
     - dir1
     - from: dir2
@@ -17,6 +20,7 @@ actions:
       [ "a" == "b" ]
       echo cmd4
 - execute: ./cmd.sh
+
 - git_clone:
     - url: https://github.com/kassick/evil-iedit-state
       to: tmp/evil-iedit-state

@@ -4,6 +4,7 @@ import textwrap
 from argparse import ArgumentParser
 
 from yaml.error import YAMLError
+from dotdot.actions import get_actions_help
 
 from dotdot.dot import Package
 from dotdot.exceptions import InvalidActionType, InvalidPackageException
@@ -90,6 +91,38 @@ def cmd_show(args):
         print(action.msg())
 
 
+def cmd_help_actions(args):
+    help_dict = get_actions_help()
+    if not args.action:
+        # list all actions
+
+        print('Available actions:')
+        for action, action_help in help_dict.items():
+            try:
+                desc = next(line
+                            for line in action_help.split('\n')
+                            if len(line.strip())
+                            )
+            except:
+                desc = None
+
+            line = action
+            if desc:
+                line += f': {desc}'
+
+            print('-', line)
+    else:
+        if args.action not in help_dict:
+            print(f'No such actoin `{args.action}`')
+            return
+
+        action_help = help_dict[args.action]
+        print(f'Action `{args.action}`')
+        print(action_help)
+
+    print(args)
+
+
 def main():
     parser = ArgumentParser(
         'dotdot',
@@ -107,6 +140,12 @@ def main():
     )
 
     sub_parser = parser.add_subparsers(help='Avaiable commands')
+
+    help_actions_parser = sub_parser.add_parser('help-actions')
+    help_actions_parser.set_defaults(func=cmd_help_actions)
+    help_actions_parser.add_argument(
+        'action', nargs='?'
+    )
 
     list_cmd_parser = sub_parser.add_parser('list')
     list_cmd_parser.set_defaults(func=cmd_list)
