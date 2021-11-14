@@ -6,10 +6,9 @@ from dataclasses import dataclass
 from typing import Optional, Sequence, Set, Tuple
 
 import yaml
-from yaml.error import YAMLError
 
 from dotdot.actions import BaseAction, SymlinkAction, action_class_from_str
-from dotdot.exceptions import InvalidActionType, InvalidPackageException
+from dotdot.exceptions import InvalidPackageException
 from dotdot.spec import SPEC_FILE_NAME
 
 
@@ -23,18 +22,26 @@ class Package:
 
     @staticmethod
     def _from_dot_file(path: str) -> Package:
-        # The most simple type of dot:
-        # the path is the file or folder that must be symlinked to the home path
+        # The most simple type of dot: the path is the file or folder that must
+        # be symlinked to the home path
 
         base_name = os.path.basename(path)
         package_path = os.path.dirname(path)
         dest = f'.{base_name}'
 
-        actions = [SymlinkAction(package_path=package_path, source=base_name, destination=dest)]
-        print(actions)
-        print(package_path)
+        actions = [
+            SymlinkAction(
+                package_path=package_path,
+                source=base_name,
+                destination=dest)
+        ]
 
-        return Package(base_name, None, package_path, variants={'default'}, actions=actions)
+        return Package(
+            base_name,
+            None,
+            package_path,
+            variants={'default'},
+            actions=actions)
 
     @staticmethod
     def _from_dot_directory(path: str) -> Package:
@@ -47,7 +54,12 @@ class Package:
 
             actions.append(SymlinkAction(source, dest))
 
-        return Package(base_name, None, path, variants={'default'}, actions=actions)
+        return Package(
+            base_name,
+            None,
+            path,
+            variants={'default'},
+            actions=actions)
 
     @staticmethod
     def from_dot_path(path: str, variant: Optional[str] = None) -> Package:
@@ -66,15 +78,18 @@ class Package:
 
             description = data.get('description') or os.path.basename(path)
 
-            # check for variants
-            # if the key does not exist, create a default variant from the actions entry
+            # check for variants. if the key does not exist, create a default
+            # variant from the actions entry
             variants = data.get('variants')
             variants = variants or {'default': data.get('actions', [])}
 
             try:
                 actions_list = variants[variant]
             except KeyError:
-                raise InvalidPackageException(f"Package {dot_name} does not contain a variant named `{variant}\'")
+                raise InvalidPackageException(
+                    f"Package {dot_name} does not contain a variant ' \
+                    'named `{variant}\'"
+                )
 
             # flatten the action list, in case we have nested actions list
             def action_iterator(actions):
@@ -112,22 +127,29 @@ class Package:
                 description,
                 path,
                 variants=set(variants.keys()),
-                actions=output_actions
-            )
+                actions=output_actions)
 
         else:
             # simple file, link it to home
-            if os.path.isfile(path): return Package._from_dot_file(path)
-            # folder without spec, link all files
-            elif os.path.isdir(path): return Package._from_dot_directory(path)
+            if os.path.isfile(path):
+                return Package._from_dot_file(path)
+                # folder without spec, link all files
+            elif os.path.isdir(path):
+                return Package._from_dot_directory(path)
             else:
                 raise InvalidPackageException(
-                    f'path {path} does not contain a valid package'
-                )
+                    f'path {path} does not contain a valid package')
 
     @staticmethod
-    def scan(path: str) -> Tuple[Sequence[Package], Sequence[Tuple[str, Exception]]]:
+    def scan(
+            path: str) -> Tuple[Sequence[Package],
+                                Sequence[Tuple[str,
+                                               Exception]]]:
         """Scans a path for dots and """
+
+        if not os.path.isdir(path):
+            raise FileNotFoundError(f'Dots path {path} does not exists')
+
         contents = os.listdir(path)
 
         results = []

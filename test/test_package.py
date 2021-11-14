@@ -1,7 +1,7 @@
 import os
 import pytest
 
-from dotdot.dot import Package
+from dotdot.pkg import Package
 from dotdot.actions import GitCloneAction, SymlinkAction, SymlinkRecursiveAction, ExecuteAction, CopyAction
 
 @pytest.fixture

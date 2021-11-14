@@ -6,8 +6,8 @@ from argparse import ArgumentParser
 from yaml.error import YAMLError
 from dotdot.actions import get_actions_help
 
-from dotdot.dot import Package
 from dotdot.exceptions import InvalidActionType, InvalidPackageException
+from dotdot.pkg import Package
 
 
 def exception_to_msg(ex: Exception) -> str:
