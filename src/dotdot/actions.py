@@ -249,6 +249,14 @@ class CopyAction(SrcDestAction):
     def execute(self, dry_run=False):
 
         if not dry_run:
+            # src in a SrcDestAction is always either an absolute path or
+            # relative to the user's home, but while copying we're not
+            # at the user's home, so we need to manipulate the path to make
+            # it absolute
+            src = os.path.expanduser(self.source)
+            if not os.path.isabs(src):
+                src = os.path.join(Path.home(), self.source)
+
             dst = os.path.expanduser(self.destination)
             if os.path.exists(dst):
                 new_name = mk_backup_name(dst)
@@ -256,10 +264,11 @@ class CopyAction(SrcDestAction):
 
                 os.rename(dst, new_name)
 
-            if os.path.isdir(self.source):
-                shutil.copytree(self.source, dst)
+            if os.path.isdir(src):
+                shutil.copytree(src, dst)
             else:
-                shutil.copy(self.source, dst)
+
+                shutil.copy(src, dst)
 
 
 @action('mkdir')
