@@ -71,11 +71,18 @@ def mk_backup_name(file_name: str) -> str:
     return os.path.join(dir_name, attempt)
 
 
-TBaseAction = TypeVar('TBaseAction', bound='BaseAction')
+def mk_parent_dirs(dst: str):
+    try:
+        os.makedirs(os.path.dirname(dst))
+    except FileExistsError:
+        pass
+
 
 # #######
 # Actions
 
+
+TBaseAction = TypeVar('TBaseAction', bound='BaseAction')
 
 @dataclass
 class BaseAction:
@@ -189,19 +196,20 @@ class SrcDestAction(BaseAction):
 
     def materialize(self: TSrcDestAction) -> TSrcDestAction:
         """
-        Makes an action paths absolute
+        Materialize the paths absolute
         """
 
-        dest_abs_path = self.destination
+        dest_abs_path = os.path.expanduser(self.destination)
         if not os.path.isabs(dest_abs_path):
-            dest_abs_path = os.path.join('~', dest_abs_path)
+            dest_abs_path = os.path.join(Path.home(), dest_abs_path)
 
-        dest_dirname = os.path.dirname(os.path.expanduser(dest_abs_path))
+        # dest_dirname = os.path.dirname(os.path.expanduser(dest_abs_path))
 
         if self.source_is_local:
             pkg_abs_path = os.path.abspath(self.package_path)
-            pkg_path_from_home = os.path.relpath(pkg_abs_path, dest_dirname)
-            object_path = os.path.join(pkg_path_from_home, self.source)
+            object_path = os.path.join(pkg_abs_path, self.source)
+            # pkg_path_from_home = os.path.relpath(pkg_abs_path, dest_dirname)
+            # object_path = os.path.join(pkg_path_from_home, self.source)
         else:
             object_path = self.source
 
@@ -236,20 +244,59 @@ class SymlinkAction(SrcDestAction):
         return f'SYMLINK {self.destination} -> {self.source}'
 
     def execute(self):
-        dst = os.path.expanduser(self.destination)
-        if os.path.exists(dst):
-            # it it's a link pointing to the same path as we want to link
+
+        # We want relative link paths. If we're going to link ~/.a/b/c to
+        # ~/src/dots/pkg/c , then the link must poing to ../../src/dots/pkg/c
+        dest_dir = os.path.dirname(self.destination)
+        link_target = os.path.relpath(self.source, dest_dir)
+
+        if os.path.exists(self.destination):
+            # if it's a link pointing to the same path as we want to link
             # there's nothing to do
-            if os.path.islink(dst) and os.readlink(dst) == self.source:
+            if os.path.islink(self.destination) and \
+               os.readlink(self.destination) == link_target:
                 print('LINK ALREADY IN PLACE -- SKIPPING')
                 return
 
-            new_name = mk_backup_name(dst)
-            print('BACK UP', dst, 'TO', new_name)
+            new_name = mk_backup_name(self.destination)
+            print('BACKUP', self.destination, 'TO', new_name)
 
-            os.rename(dst, new_name)
+            os.rename(self.destination, new_name)
 
-        os.symlink(self.source, dst)
+        mk_parent_dirs(self.destination)
+        os.symlink(link_target, self.destination)
+
+
+@action('copy_once')
+@dataclass
+class CopyOnceAction(SrcDestAction):
+    """Copies a file or directory to a destination only if if does not
+    already exists
+
+    Copies `file` to ~/.file
+      - copy_once: file
+
+    Copies `file1` to ~/.file1, `file2` to ~/.file2
+      - copy_once:
+          - file1
+          - file2
+
+    Copies `file1` to ~/.file1, `file2` to ~/some/path/file2
+      - copy_once:
+          - file1
+          - from: file2
+            to: some/path/file2
+    """
+
+    def msg(self) -> str:
+        return f'COPY ONCE TO {self.destination} FROM {self.source}'
+
+    def execute(self):
+        if not os.path.exists(self.destination):
+            mk_parent_dirs(self.destination)
+            shutil.copy(self.source, self.destination)
+        else:
+            print('FILE ALREADY EXISTS, SKIPPING')
 
 
 @action('copy')
@@ -276,26 +323,17 @@ class CopyAction(SrcDestAction):
         return f'COPY {self.destination} -> {self.source}'
 
     def execute(self):
-        # src in a SrcDestAction is always either an absolute path or
-        # relative to the user's home, but while copying we're not
-        # at the user's home, so we need to manipulate the path to make
-        # it absolute
-        src = os.path.expanduser(self.source)
-        if not os.path.isabs(src):
-            src = os.path.join(Path.home(), self.source)
+        if os.path.exists(self.destination):
+            new_name = mk_backup_name(self.destination)
+            print('BACKUP', self.destination, 'TO', new_name)
 
-        dst = os.path.expanduser(self.destination)
-        if os.path.exists(dst):
-            new_name = mk_backup_name(dst)
-            print('Backing up', dst, 'to', new_name)
+            os.rename(self.destination, new_name)
 
-            os.rename(dst, new_name)
-
-        if os.path.isdir(src):
-            shutil.copytree(src, dst)
+        mk_parent_dirs(self.destination)
+        if os.path.isdir(self.source):
+            shutil.copytree(self.source, self.destination)
         else:
-
-            shutil.copy(src, dst)
+            shutil.copy(self.source, self.destination)
 
 
 @action('mkdir')
@@ -327,6 +365,9 @@ class MkdirAction(BaseAction):
 
     def execute(self):
         target = os.path.expanduser(self.target_dir)
+        if not os.path.isabs(target):
+            target = os.path.join(Path.home(), target)
+
         if os.path.exists(target):
             if not os.path.isdir(target):
                 raise Exception(
@@ -380,16 +421,16 @@ class SymlinkRecursiveAction(SrcDestAction):
               to: .elsewhere/else
     """
 
-    _actions: List[BaseAction] = field(default_factory=list)
-
     def msg(self) -> str:
-        lines = [f'SYMLINK RECUSRIVELY {self.destination} -> {self.source}']
+        #lines = [
+        return f'SYMLINK RECUSRIVELY {self.destination} -> {self.source}'
+        #]
 
-        lines.extend(f'- {action.msg()}' for action in self._actions)
+        #lines.extend(f'- {action.msg()}' for action in self._actions)
 
-        return '\n'.join(lines)
+        #return '\n'.join(lines)
 
-    def __post_init__(self):
+    def build_actions(self) -> Sequence[BaseAction]:
         '''
         link_recursively: dir1
 
@@ -403,9 +444,11 @@ class SymlinkRecursiveAction(SrcDestAction):
             raise InvalidActionDescription(
                 f'can not recursively symlink external url {self.source}')
 
+        actions = []
         recurse_origin = os.path.join(self.package_path, self.source)
 
-        for root, directories, files in os.walk(recurse_origin):
+        for root, _dirs, files in os.walk(recurse_origin):
+
             link_src_dir = os.path.relpath(root, recurse_origin)
 
             for file_name in files:
@@ -415,29 +458,34 @@ class SymlinkRecursiveAction(SrcDestAction):
                 dst_path = os.path.normpath(
                     os.path.join(self.destination,
                                  link_src_dir))
+
                 dst = os.path.join(dst_path, file_name)
 
-                mkdir_action = MkdirAction(
-                    package_path='~',
-                    target_dir=dst_path)
                 link_action = SymlinkAction(
                     package_path=self.package_path,
                     source=src_file,
                     destination=dst)
 
-                self._actions.append(mkdir_action)
-                self._actions.append(link_action)
+                actions.append(link_action)
 
-    def materialize(self):
-        materialized = super().materialize()
-        materialized._actions = [a.materialize() for a in self._actions]
+        return actions
 
-        return materialized
+    @classmethod
+    def parse_entries(
+            cls,
+            package_path: str,
+            entries: Union[str, Sequence[Any]]
+    ) -> Sequence[BaseAction]:
+        actions = super().parse_entries(package_path, entries)
+        def action_yielder():
+            for action in actions:
+                a: SymlinkRecursiveAction = action  # type: ignore
+                yield a
+                yield from a.build_actions()
 
-    def execute(self):
-        for action in self._actions:
-            print('-', action.msg())
-            action.execute()
+        return list(action_yielder())
+
+    def execute(self): pass
 
 
 @action('git_clone')
