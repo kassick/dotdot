@@ -616,10 +616,11 @@ class GitCloneAction(SrcDestAction):
             except Exception:
                 remote_head.checkout()
                 local_head = repo.create_head(f'refs/heads/{branch_name}')
-                local_head.set_tracking_branch(remote_head)
 
             # found both heads
             break
+
+        local_head.set_tracking_branch(remote_head)
 
         print(f'- Checking out ref {local_head.name}')
         local_head.checkout()
