@@ -38,7 +38,7 @@ specify the actions
 
 ### Clonning a repository
 
-For an up-to-date *oh-my-zsh*, we must have the repository cloned in locally. We
+For an up-to-date *oh-my-zsh*, we must have the repository cloned locally. We
 can specify the process in the spec.yaml this way:
 
 1. Create `dots/zsh/zshrc` and `dots/zsh/zprofile`
