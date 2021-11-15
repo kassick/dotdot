@@ -61,7 +61,7 @@ def mk_backup_name(file_name: str) -> str:
     i = 1
     attempt = bk_name
 
-    while os.path.exists(os.path.join(dir_name, attempt)):
+    while os.path.lexists(os.path.join(dir_name, attempt)):
         attempt = f'{bk_name}.{i}'
         i += 1
 
@@ -251,7 +251,7 @@ class SymlinkAction(SrcDestAction):
         dest_dir = os.path.dirname(self.destination)
         link_target = os.path.relpath(self.source, dest_dir)
 
-        if os.path.exists(self.destination):
+        if os.path.lexists(self.destination):
             # if it's a link pointing to the same path as we want to link
             # there's nothing to do
             if os.path.islink(self.destination) and \
@@ -324,7 +324,7 @@ class CopyAction(SrcDestAction):
         return f'COPY {self.destination} -> {self.source}'
 
     def execute(self):
-        if os.path.exists(self.destination):
+        if os.path.lexists(self.destination):
             new_name = mk_backup_name(self.destination)
             print('BACKUP', self.destination, 'TO', new_name)
 
@@ -369,7 +369,7 @@ class MkdirAction(BaseAction):
         if not os.path.isabs(target):
             target = os.path.join(Path.home(), target)
 
-        if os.path.exists(target):
+        if os.path.lexists(target):
             if not os.path.isdir(target):
                 raise Exception(
                     f'can not create path {target}: it exists as a file')
