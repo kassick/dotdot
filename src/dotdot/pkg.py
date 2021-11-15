@@ -12,9 +12,10 @@ from dotdot.exceptions import InvalidPackageException
 from dotdot.spec import SPEC_FILE_NAME
 
 
-DOTS_TO_IGNORE={
+DOTS_TO_IGNORE = {
     '.keep'
 }
+
 
 @dataclass
 class Package:
@@ -159,7 +160,9 @@ class Package:
         results = []
         errors = []
         for dot in contents:
-            if dot in DOTS_TO_IGNORE: continue
+            if dot in DOTS_TO_IGNORE:
+                continue
+
             dot_path = os.path.join(path, dot)
             try:
                 results.append(Package.from_dot_path(dot_path))
