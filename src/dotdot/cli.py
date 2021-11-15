@@ -48,7 +48,7 @@ def cmd_install(args):
     for dot in args.dot:
         dot_path = os.path.join(args.dots_path, dot)
         try:
-            pkgs.append(Package.from_dot_path(dot_path))
+            pkgs.append(Package.from_dot_path(dot_path, variant=args.variant))
         except Exception as e:
             print(f'ERROR: Could not load dot {dot}')
             print(exception_to_msg(e))
