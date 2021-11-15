@@ -207,16 +207,16 @@ class SrcDestAction(BaseAction):
         # dest_dirname = os.path.dirname(os.path.expanduser(dest_abs_path))
 
         if self.source_is_local:
-            pkg_abs_path = os.path.abspath(self.package_path)
-            object_path = os.path.join(pkg_abs_path, self.source)
-            # pkg_path_from_home = os.path.relpath(pkg_abs_path, dest_dirname)
-            # object_path = os.path.join(pkg_path_from_home, self.source)
+            src_abs_path = os.path.expanduser(self.source)
+            if not os.path.isabs(src_abs_path):
+                pkg_abs_path = os.path.abspath(self.package_path)
+                src_abs_path = os.path.join(pkg_abs_path, src_abs_path)
         else:
-            object_path = self.source
+            src_abs_path = self.source
 
         return type(self)(
             package_path=str(Path.home()),
-            source=object_path,
+            source=src_abs_path,
             destination=dest_abs_path,
             source_is_local=self.source_is_local)
 
