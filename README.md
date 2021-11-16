@@ -238,7 +238,8 @@ actions:
 - link_recursively:
   - from: share
     to: .local/share
-  # creates ~/new_other_file_name pointing to other_file
+  # replicates the folder structure under etc.d links under ~/.local/etc.d
+  # creating symlinks pointing to the package
   - from: etc.d
     to: .local/etc.d
 ```
