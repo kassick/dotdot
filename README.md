@@ -4,7 +4,7 @@ Yeah, yet another dotfiles manager.
 
 This is an iteration over a previous solution that became annoying to maintain.
 As I still wanted the same overall behaviour -- create links in my home pointing
-to my dotfiles repo -- so I decided to create a new tool with the desired
+to my dotfiles repo -- I decided to create a new tool with the desired
 behaviour instead of migrate my setup to chezmoi or something else.
 
 BTW, check [this link](https://dotfiles.github.io/utilities/) for a
