@@ -133,6 +133,7 @@ def main():
     parser.add_argument(
         '--dots-path',
         '-d',
+        default='./dots',
         type=str,
         help='Path where dotfiles are stored')
 
@@ -161,6 +162,10 @@ def main():
     install_cmd_parser.add_argument('dot', help='Dots to install', nargs='+')
 
     args = parser.parse_args()
+    if not os.path.isdir(args.dots_path):
+        print(f'Dots path {args.dots_path} is not a directory')
+        sys.exit(1)
+
     if 'func' in args:
         args.func(args)
     else:
