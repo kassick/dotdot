@@ -78,7 +78,7 @@ actions:
 
 Sometimes the destination of your files is somewhat deep under your home (e.g.
 `.local/share/fonts`) and you don't want to list every one of the fonts in the
-spec file. In this case, you can use the `symlink_recursive` rule
+spec file. In this case, you can use the `link_recursively` rule
 
 1. Store your fonts under `dots/fonts/local/share/fonts`
 2. Tell dotdot to symlink every file under local to it's corresponding path
@@ -86,7 +86,7 @@ spec file. In this case, you can use the `symlink_recursive` rule
 ```yaml
 description: Fonts
 actions:
-- symlink_recursive: local
+- link_recursively: local
 ```
 3. All files under `dots/fonts/local/share/fonts` will be symlinked to
    `~/.local/share/fonts`.
@@ -200,7 +200,7 @@ Copies a file from the package directory to the user's home. Same syntax as
   - copy: file1
 ```
 
-## `symlink_recursively`
+## `link_recursively`
 
 Recreates a tree structure under the destination and links all files present in
 the target.
