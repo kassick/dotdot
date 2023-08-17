@@ -1,3 +1,37 @@
+[tool.poetry]
+name = "dotdot"
+description = "Manage dotfiles"
+authors = ["Rodrigo Kassick <kassick@gmail.com>"]
+
+version = "0.0.1"
+
+packages = [
+  { include = "dotdot", from="src" }
+]
+
+# [tool.poetry-dynamic-versioning]
+# enable = true
+# dirty = true
+
+[tool.poetry.scripts]
+dotdot = "dotdot.cli:main"
+
+[tool.poetry.dependencies]
+python = ">=3.10,<4"
+GitPython="^3.1.0"
+pyaml = "^23.7.0"
+
+[tool.poetry.group.dev.dependencies]
+
+pytest = { version = "^7.2.2", source = "PyPI" }
+pytest-sugar = { version = "^0.9.6", source = "PyPI" }
+pytest-cov = { version = "^4.0.0", source = "PyPI" }
+pytest-clarity = { version = "^1.0.1", source = "PyPI" }
+pytest-randomly = { version = "^3.12.0", source = "PyPI" }
+mypy = { version = "^1.1.1", source = "PyPI" }
+flake8 = { version = "^6.0.0", source = "PyPI" }
+black = { version = "^22", source = "PyPI" }
+
 [build-system]
-requires = ["setuptools", "wheel"]
-build-backend = "setuptools.build_meta"
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
